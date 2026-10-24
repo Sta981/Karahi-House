@@ -20,16 +20,20 @@ export class AuraWsTts implements Tts {
   }) {}
   warm(): Promise<void> {
     if (this.socket?.readyState === WebSocket.OPEN) return Promise.resolve();
-    if (this.connecting) return this.connecting;
+    if (this.socket?.readyState === WebSocket.CONNECTING && this.connecting) return this.connecting;
     this.connecting = new Promise<void>((resolve, reject) => {
       let socket: WebSocket;
       try { socket = this.connect(); } catch { reject(Error("Aura connection configuration failed")); return; }
       this.socket = socket;
       socket.once("open", resolve);
-      socket.on("error", () => { this.fail("Aura connection failed"); reject(Error("Aura connection failed")); });
+      socket.on("error", () => { if(this.socket===socket)this.fail("Aura connection failed"); reject(Error("Aura connection failed")); });
       socket.on("unexpected-response", (_req,res) => { res.resume(); socket.terminate(); reject(Error(`Aura handshake HTTP ${res.statusCode}`)); });
-      socket.on("close", () => { this.connecting = undefined; this.socket = undefined; this.fail("Aura connection closed"); });
+      socket.on("close", () => {
+        if(this.socket===socket){this.connecting = undefined; this.socket = undefined; this.fail("Aura connection closed");}
+        reject(Error("Aura connection closed before ready"));
+      });
       socket.on("message", (data, binary) => {
+        if(this.socket!==socket)return;
         const job = this.current;
         if (binary) {
           if (!job || job.done || job.cancelled) return;

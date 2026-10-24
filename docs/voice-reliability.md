@@ -1,0 +1,21 @@
+# Local microphone connection follow-up
+
+Local loopback calls ignore `VOICE_DEMO_ACCESS_TOKEN`, even if it is configured in `.env.local`. `/voice-health` reports `requiresAccessCode: false` and the page hides the password field. A public-bound server still requires its configured code; Render remains on hold.
+
+The browser now creates/resumes its audio context directly in the Start microphone click. It obtains microphone permission and prepares the capture worklet **before** opening STT. Previously the provider connection waited while the browser requested permission, and audio setup ran after a network event. Delayed permission could leave STT with no audio; gesture-sensitive playback could stay suspended. These are identified failure paths, not a claim to have reproduced the user's specific microphone/network conditions.
+
+Each connection owns its cleanup, including pending permission requests and timeouts. An old connection cannot tear down a new one. The page shows a microphone meter and interim words. Recognition disconnects retain a specific, bounded reason instead of losing it behind a generic closed message. A second tab gets an explicit call-already-open message.
+
+A TTS error no longer closes the microphone or discards the server's cart. Its text reply remains visible, and the next utterance can continue the order. Aura reconnects after an idle connection closes; a late close from an old socket cannot erase a new one. Closing during the handshake rejects instead of waiting indefinitely. No provider is switched automatically and the default LLM remains off.
+
+Validation: 30 voice unit tests (seven new reliability tests), 11 live-call pattern tests, three publication/privacy tests, TypeScript checking and a real Edge fixture smoke. The browser fixture uses normal autoplay policy, delayed mock permission, real AudioWorklet/WebSocket transport, synthetic PCM, two initial order turns, an injected TTS failure, a successful third turn, and an injected recognition timeout. It verifies password absence, permission-before-STT, retained microphone/cart, readable disconnect reason and microphone release. No caller microphone/recording is used by that fixture.
+
+Completed-stream testing reproduced a separate live failure: two direct Aura WebSocket requests produced partial PCM without a `Flushed` completion, and full browser runs timed out after text/partial audio arrived. A matching direct HTTP request completed (HTTP 200, 115,200 bytes, 10.10 seconds for the full response; n=1). The same Aura voice therefore uses HTTP streaming by default on the laptop; `VOICE_AURA_TRANSPORT=ws` remains an explicit choice. No automatic retry, provider switch or speed claim follows from that one sample. First-acknowledgement-only checks were insufficient and are not called successful full replies.
+
+The live provider diagnostic uses one already-cached synthetic menu phrase per model and requires a completed reply audio stream, not just an acknowledgement. It is a connection/synthesis check, not accent accuracy or a model comparison. Private diagnostic output stays under `.data`. A real-mic retest is still required to confirm the reported problem is resolved on the user's input device/network.
+
+Final HTTP browser check on this Lahore laptop: Flux 1/1 completed reply, Nova-3 multilingual 1/1, Nova-3 en-IN 1/1. All three had one final transcript, one text reply, a completed reply-audio stream, no reported provider errors, no browser page errors and no password field. Reply PCM received was 314,880 / 293,760 / 138,240 bytes respectively; different recognition/replies can have different durations. These are three connection checks, not dish/slot grades or proof that every microphone/network condition is fixed. No new latency percentile is inferred.
+
+No menu, matcher, order engine, held-out cases or grading rules changed. The server logs only bounded failure/close codes and frame counts, never transcripts, microphone audio, credentials or raw provider close payloads.
+
+References: [Web Audio user-gesture guidance](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Best_practices#autoplay_policy), [Deepgram no-audio and WebSocket errors](https://developers.deepgram.com/docs/stt-troubleshooting-websocket-data-and-net-errors).

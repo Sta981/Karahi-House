@@ -75,7 +75,12 @@ export class AuraTts implements Tts {
   }
   close() {}
 }
-export function makeTts(name: string): Tts {
-  if (name === "kokoro") return new KokoroTts(); if (name === "aura-2") return new AuraWsTts();
+export function makeTts(name: string, transport = process.env.VOICE_AURA_TRANSPORT?.trim() || "http"): Tts {
+  if (name === "kokoro") return new KokoroTts();
+  if (name === "aura-2") {
+    if(transport==="http")return new AuraTts();
+    if(transport==="ws")return new AuraWsTts();
+    throw Error("VOICE_AURA_TRANSPORT must be http or ws");
+  }
   throw Error("VOICE_TTS_PROVIDER must be kokoro or aura-2");
 }

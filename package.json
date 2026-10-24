@@ -9,7 +9,7 @@
     "test:github": "node --test scripts/github-publication.test.mjs",
     "dev:voice": "tsx scripts/voice-server.ts",
     "start:voice": "tsx scripts/voice-server.ts",
-    "test:voice": "tsx --test scripts/voice.test.ts scripts/voice-optimization.test.ts scripts/voice-adaptive.test.ts",
+    "test:voice": "tsx --test scripts/voice.test.ts scripts/voice-optimization.test.ts scripts/voice-adaptive.test.ts scripts/voice-reliability.test.ts",
     "test:live": "tsx --test scripts/live-call-patterns.test.ts",
     "voice:cache": "tsx scripts/voice-cache-benchmark.ts",
     "voice:endpointing": "tsx scripts/voice-endpoint-benchmark.ts",

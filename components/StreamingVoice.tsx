@@ -2,34 +2,68 @@
 import { useEffect, useRef, useState } from "react";
 import { voiceCsv,type VoiceLogRow } from "@/voice/turn-log";
 import { mishearingsCsv } from "@/voice/mishearings";
+import { recoverableVoiceError,voiceErrorMessage } from "@/voice/connection-status";
 
 type Timing = { totalMs: number; endpointAndUplinkMs: number; engineMs: number; ttsFirstByteMs: number; returnNetworkMs: number; browserRttMs: number; clockUncertaintyMs: number };
 function percentiles(values: number[]) { const sorted = [...values].sort((a,b) => a-b); return { n: sorted.length, p50: sorted[Math.max(0, Math.ceil(sorted.length*.5)-1)]?.toFixed(1) ?? "—", p95: sorted[Math.max(0, Math.ceil(sorted.length*.95)-1)]?.toFixed(1) ?? "—" }; }
 export default function StreamingVoice() {
   const [model, setModel] = useState(""), [status, setStatus] = useState("Choose a model to compare"), [active, setActive] = useState(false);
   const [accessCode,setAccessCode]=useState(""),[locationLabel,setLocationLabel]=useState("Not measured"),[logs,setLogs]=useState<VoiceLogRow[]>([]);
+  const [requiresAccessCode,setRequiresAccessCode]=useState(false),[partial,setPartial]=useState(""),[micLevel,setMicLevel]=useState(0);
   const [intended,setIntended]=useState<Record<string,string>>({});
   const [rows, setRows] = useState<{role:string;text:string}[]>([]), [cart, setCart] = useState<any[]>([]), [timings, setTimings] = useState<Timing[]>([]);
   const cleanup = useRef<() => void>(() => {}); const interrupt = useRef<() => void>(() => {});
-  useEffect(() => () => cleanup.current(), []);
+  useEffect(() => {
+    const abort=new AbortController();
+    void fetch("/voice-health",{signal:abort.signal,cache:"no-store"}).then(response=>response.json()).then(health=>{if(!abort.signal.aborted)setRequiresAccessCode(health.requiresAccessCode===true);}).catch(()=>{});
+    return ()=>{abort.abort();cleanup.current();};
+  }, []);
   async function connect() {
-    cleanup.current(); setTimings([]); setRows([]); setCart([]); setLogs([]);setIntended({}); setStatus("Connecting and warming speech…"); setActive(true);
+    cleanup.current(); setTimings([]); setRows([]); setCart([]); setLogs([]);setIntended({});setPartial("");setMicLevel(0);setStatus("Opening microphone…"); setActive(true);
     let context: AudioContext | undefined, stream: MediaStream | undefined, worklet: AudioWorkletNode | undefined, capture: MediaStreamAudioSourceNode | undefined;
+    let socket:WebSocket|undefined,pingTimer:ReturnType<typeof setInterval>|undefined,connectTimer:ReturnType<typeof setTimeout>|undefined;
     let stopped = false, ready = false, generation = -1, minGeneration = 0, blocked = false, scheduled = 0, sync = { rtt: Infinity, offset: 0 };
     let lastEnd = NaN, lastEndAudio = NaN, audioStart: any, measuredGeneration = -1, pendingByte: number | undefined;
     const sources = new Set<AudioBufferSourceNode>();
-    const socket = new WebSocket(`${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws/voice`); socket.binaryType = "arraybuffer";
     const stopAudio = () => { for (const source of sources) { try { source.stop(); } catch {} } sources.clear(); scheduled = 0; pendingByte = undefined; };
-    const pingTimer = setInterval(() => { if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "ping", sent: performance.now() })); }, 2000);
-    cleanup.current = () => {
-      if (stopped) return; stopped = true; ready = false; clearInterval(pingTimer); stopAudio();
-      stream?.getTracks().forEach(track => track.stop()); worklet?.disconnect(); capture?.disconnect(); void context?.close();
-      if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "stop" })); socket.close(); setActive(false);
+    const send=(message:Record<string,unknown>)=>{if(socket?.readyState===WebSocket.OPEN)socket.send(JSON.stringify(message));};
+    const stopConnection = () => {
+      if (stopped) return; stopped = true; ready = false; clearInterval(pingTimer);clearTimeout(connectTimer);stopAudio();
+      stream?.getTracks().forEach(track => track.stop()); worklet?.disconnect(); capture?.disconnect(); void context?.close().catch(()=>{});
+      send({ type: "stop" });socket?.close();setActive(false);setMicLevel(0);setPartial("");
     };
-    interrupt.current = () => { stopAudio(); blocked = true; minGeneration = Math.max(minGeneration, generation+1); if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: "barge_in" })); };
-    socket.onopen = () => { socket.send(JSON.stringify({ type: "ping", sent: performance.now() })); socket.send(JSON.stringify({ type: "start", model,accessCode })); };
-    socket.onerror = () => { setStatus("Voice socket failed. Start with npm run dev:voice."); cleanup.current(); };
-    socket.onclose = () => { if (!stopped) { setStatus("Disconnected. Your session is cleared; reconnect to start again."); cleanup.current(); } };
+    cleanup.current=stopConnection;
+    const fail=(message:string)=>{if(!stopped){setStatus(message);stopConnection();}};
+    interrupt.current = () => { if(stopped||!ready)return;stopAudio(); blocked = true; minGeneration = Math.max(minGeneration, generation+1);send({ type: "barge_in" }); };
+    // Unlock audio in the actual button gesture. Permission/setup finishes
+    // before opening billable STT, so a slow permission prompt cannot time out STT.
+    try {
+      context=new AudioContext({sampleRate:48000});await context.resume();
+      if(stopped)return;
+      await context.audioWorklet.addModule("/voice-capture.js");
+      stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1}});
+      if(stopped){stream.getTracks().forEach(track=>track.stop());return;}
+      capture=context.createMediaStreamSource(stream);worklet=new AudioWorkletNode(context,"voice-capture");
+      for(const track of stream.getAudioTracks())track.addEventListener("ended",()=>fail("The microphone disconnected. Check your input device and start again."));
+    } catch {fail("Microphone permission or audio setup failed. Allow the microphone in this browser and use localhost or HTTPS.");return;}
+    if(stopped)return;
+    setStatus("Connecting speech recognition…");
+    socket = new WebSocket(`${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws/voice`); socket.binaryType = "arraybuffer";
+    pingTimer=setInterval(()=>send({type:"ping",sent:performance.now()}),2000);
+    connectTimer=setTimeout(()=>fail("Speech connection timed out. Check the server and network, then start again."),25000);
+    worklet.port.onmessage = ({ data }) => {
+      if (!ready || stopped || socket?.readyState !== WebSocket.OPEN) return;
+      if (data.type === "pcm") {
+        setMicLevel(Math.min(1,Math.max(0,Number(data.level)||0)));
+        if (!Number.isFinite(lastEndAudio)) lastEndAudio = performance.now()-data.audioSeconds*1000;
+        if (socket.bufferedAmount > 32000) {fail("Audio upload cannot keep up; reconnect on a steadier network.");return;}
+        socket.send(data.pcm);
+      } else if (data.type === "speech_start") { lastEnd = NaN; interrupt.current(); }
+      else if (data.type === "speech_end") lastEnd = performance.now()-data.hangoverMs;
+    };
+    socket.onopen = () => {send({ type: "ping", sent: performance.now() });send({ type: "start", model,accessCode:requiresAccessCode?accessCode:"" });};
+    socket.onerror = () => fail("Voice connection failed. Keep npm run dev:voice running and close any other voice-demo tabs.");
+    socket.onclose = event => fail(event.code===1000?"Call ended. Start the microphone to begin again.":`Voice connection ended (${event.code}). Start the microphone again to reconnect.`);
     socket.onmessage = async event => {
       if (stopped) return;
       if (event.data instanceof ArrayBuffer) {
@@ -40,7 +74,7 @@ export default function StreamingVoice() {
           const finalBrowser = audioStart.finalAt - sync.offset, firstBrowser = audioStart.firstAt - sync.offset;
           // Greeting is excluded. EOS is an energy-VAD estimate, not manual ground truth.
           const timing: Timing = { totalMs: received-lastEnd, endpointAndUplinkMs: finalBrowser-lastEnd, engineMs: audioStart.engineMs, ttsFirstByteMs: audioStart.ttsFirstByteMs, returnNetworkMs: received-firstBrowser, browserRttMs: sync.rtt, clockUncertaintyMs: sync.rtt/2 };
-          if (timing.totalMs >= 0 && timing.endpointAndUplinkMs >= -sync.rtt) {setTimings(prev => [...prev.slice(-199), timing]);socket.send(JSON.stringify({type:"latency",generation,timing}));}
+          if (timing.totalMs >= 0 && timing.endpointAndUplinkMs >= -sync.rtt) {setTimings(prev => [...prev.slice(-199), timing]);send({type:"latency",generation,timing});}
           measuredGeneration = generation;
         }
         const raw = new Uint8Array(event.data, 4);
@@ -59,12 +93,18 @@ export default function StreamingVoice() {
         const now = performance.now(), rtt = now-msg.sent;
         if (rtt < sync.rtt) sync = { rtt, offset: msg.server-(now+msg.sent)/2 }; return;
       }
-      if (msg.type === "error") { setStatus(msg.message || `Voice error: ${msg.code}`); cleanup.current(); return; }
+      if (msg.type === "error") {
+        const message=msg.message||voiceErrorMessage(msg.code);
+        if(recoverableVoiceError(msg.code)){stopAudio();setStatus(message);return;}
+        fail(message);return;
+      }
+      if(msg.type==="partial"){setPartial(msg.text);return;}
       if (msg.type === "interrupt") { stopAudio(); generation = msg.generation; blocked = true; return; }
       if (msg.type === "audio_start") {
         if (msg.generation < Math.max(generation,minGeneration)) return; generation = msg.generation; blocked = false; audioStart = msg; return;
       }
       if (msg.type === "transcript") {
+        setPartial("");
         setRows(prev => [...prev.slice(-39), {role:"You",text:msg.text}]);
         // If VAD has not yet hung over, use provider word end on the capture
         // timeline as a labelled estimate. Never use receipt of final text as EOS.
@@ -74,26 +114,11 @@ export default function StreamingVoice() {
       if (msg.type === "reply") { setRows(prev => [...prev.slice(-39), {role:"Agent",text:msg.text}]); setCart(msg.cart); return; }
       if(msg.type==="turn_log"){setLogs(prev=>[...prev.filter(row=>row.turnId!==msg.row.turnId),msg.row].slice(-200));return;}
       if (msg.type !== "ready") return;
+      clearTimeout(connectTimer);
       setLocationLabel(msg.location||"Lahore local");
-      try {
-        context = new AudioContext({ sampleRate: 48000 }); await context.resume();
-        await context.audioWorklet.addModule("/voice-capture.js");
-        stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 } });
-        if (stopped) { stream.getTracks().forEach(track => track.stop()); void context.close(); return; }
-        capture = context.createMediaStreamSource(stream); worklet = new AudioWorkletNode(context, "voice-capture");
-        worklet.port.onmessage = ({ data }) => {
-          if (!ready || stopped || socket.readyState !== WebSocket.OPEN) return;
-          if (data.type === "pcm") {
-            if (!Number.isFinite(lastEndAudio)) lastEndAudio = performance.now()-data.audioSeconds*1000;
-            if (socket.bufferedAmount > 32000) { setStatus("Audio upload cannot keep up; reconnect on a steadier network."); cleanup.current(); return; }
-            socket.send(data.pcm);
-          } else if (data.type === "speech_start") { lastEnd = NaN; interrupt.current(); }
-          else if (data.type === "speech_end") lastEnd = performance.now()-data.hangoverMs;
-        };
-        capture.connect(worklet); worklet.connect(context.destination); ready = true;
-        socket.send(JSON.stringify({ type: "mic_ready" }));
-        setStatus(`Listening · ${msg.model} · ${msg.tts} · microphone stays on during replies`);
-      } catch { setStatus("Microphone permission or audio setup failed. Use localhost or HTTPS and allow the mic."); cleanup.current(); }
+      capture!.connect(worklet!);worklet!.connect(context!.destination);ready=true;
+      send({ type: "mic_ready" });
+      setStatus(`Listening · ${msg.model} · ${msg.tts} · microphone stays on during replies`);
     };
   }
   return <section className="section"><div className="panel">
@@ -101,14 +126,15 @@ export default function StreamingVoice() {
     <p>Menu approved by the restaurant. Demo orders are simulated and pending staff acceptance. No caller audio is saved. Redacted turn logs can be exported to CSV.</p>
     <div className="call-controls" style={{marginTop:20}}>
       <label>Recognition <select aria-label="Recognition model" value={model} onChange={e => setModel(e.target.value)} disabled={active}><option value="">Choose a model</option><option value="flux">Flux English</option><option value="nova-3">Nova-3 multilingual</option><option value="nova-3-en-IN">Nova-3 Indian English</option></select></label>
-      <label>Hosted demo access code <input aria-label="Hosted demo access code" type="password" autoComplete="off" value={accessCode} onChange={e=>setAccessCode(e.target.value)} disabled={active}/></label>
+      {requiresAccessCode&&<label>Hosted demo access code <input aria-label="Hosted demo access code" type="password" autoComplete="off" value={accessCode} onChange={e=>setAccessCode(e.target.value)} disabled={active}/></label>}
       <button className="btn btn-primary" disabled={active||!model} onClick={() => void connect()}>Start microphone</button>
       <button className="btn btn-ghost" disabled={!active} onClick={() => interrupt.current()}>Interrupt reply</button>
       <button className="btn btn-danger" disabled={!active} onClick={() => {cleanup.current();setStatus("Ended. Microphone released.");}}>End call</button>
     </div>
     <p role="status">{status}</p>
+    {active&&<p>Microphone level <meter aria-label="Microphone level" min={0} max={0.15} value={micLevel}/> {partial&&<span>Heard so far: {partial}</span>}</p>}
     <p>Use headphones for the first test. Calls end after ten minutes. Text demo: <a href="/">home</a>.</p>
-    <p>No final STT choice has been made. Compare both using the same real-mic script.</p>
+    <p>No final recognition model has been chosen. Compare the three options using the same real-mic script.</p>
     <div aria-live="polite" style={{marginTop:20}}>{rows.map((row,i) => <p key={i}><strong>{row.role}:</strong> {row.text}</p>)}</div>
     <h2 style={{marginTop:20}}>Current cart</h2>
     {cart.length ? cart.map((item,i) => <p key={i}>{item.qty} × {item.name}{item.size ? ` · ${item.size}` : ""}{item.spiceLevel ? ` · ${item.spiceLevel}` : ""}</p>) : <p>No items yet.</p>}

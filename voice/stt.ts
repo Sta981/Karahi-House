@@ -2,6 +2,7 @@ import WebSocket from "ws";
 import source from "../lib/menu-source.json";
 import type { SttEvent, SttModel, SttStream } from "./contracts";
 import { endpointSettings, type EndpointSettings } from "./endpointing";
+import { sttCloseError } from "./connection-status";
 
 // Final-source vocabulary only; no notes, caller identity or price data.
 export const MENU_WORDS = [...new Set(source.items.flatMap(item => item.name.match(/[A-Za-z]+/g) ?? []))];
@@ -79,7 +80,7 @@ export async function openStt(model: SttModel, emit: (event: SttEvent) => void, 
     try { decoder.accept(JSON.parse(bytes.toString())); } catch { emit({ type: "error", code: "stt_invalid_message" }); }
   });
   socket.on("error", () => { if (!closed) emit({ type: "error", code: "stt_connection_failed" }); });
-  socket.on("close", () => { if (!closed) emit({ type: "error", code: "stt_disconnected" }); });
+  socket.on("close", (code, reason) => { if (!closed) emit(sttCloseError(code, reason.toString())); });
   await new Promise<void>((resolve, reject) => {
     socket.once("open", resolve);
     socket.once("error", () => reject(Error("Deepgram connection failed; check key, credits and network")));

@@ -15,7 +15,7 @@ class VoiceCapture extends AudioWorkletProcessor {
       this.frame[this.offset++] = Math.round(Math.max(-1, Math.min(1, value)) * 32767); this.samples++;
       if (this.offset !== this.frame.length) continue;
       let energy = 0; for (const v of this.frame) energy += (v / 32768) ** 2;
-      const loud = Math.sqrt(energy / this.frame.length) > .018;
+      const level = Math.sqrt(energy / this.frame.length), loud = level > .018;
       if (loud) {
         this.loud++; this.quiet = 0; this.lastLoud = this.samples;
         if (!this.active && this.loud >= 2) { this.active = true; this.port.postMessage({ type: "speech_start", audioSeconds: this.samples / 16000 }); }
@@ -23,7 +23,7 @@ class VoiceCapture extends AudioWorkletProcessor {
         this.loud = 0; this.quiet++;
         if (this.active && this.quiet >= 3) { this.active = false; this.port.postMessage({ type: "speech_end", audioSeconds: this.lastLoud / 16000, hangoverMs: (this.samples - this.lastLoud) / 16 }); }
       }
-      this.port.postMessage({ type: "pcm", pcm: this.frame.buffer, audioSeconds: this.samples / 16000 }, [this.frame.buffer]);
+      this.port.postMessage({ type: "pcm", pcm: this.frame.buffer, audioSeconds: this.samples / 16000, level }, [this.frame.buffer]);
       this.frame = new Int16Array(1280); this.offset = 0;
     }
     return true;

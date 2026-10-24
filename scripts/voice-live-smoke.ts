@@ -13,7 +13,7 @@ async function main(sharedAudio?:Buffer[],forcedAck?:boolean){
   const paired=process.argv.includes("--paired-ab"),remote=process.argv.includes("--us"),optimized=process.argv.includes("--optimized"),ab=process.argv.includes("--latency-ab")||paired,ack=forcedAck??!process.argv.includes("--no-ack");
   const target=remote?process.env.VOICE_US_BASE_URL?.trim():"http://127.0.0.1:3110";
   if(!target||remote&&!target.startsWith("https://"))throw Error("VOICE_US_BASE_URL must be the real HTTPS deployment URL");
-  const report:Record<string,any>={kind:"live-providers-synthetic-English-not-accent-eval",location:remote?"US-hosted":"Lahore local",browserLocation:"Lahore",sttModels:["flux-general-en","nova-3 language=multi"],tts:"aura-2-thalia-en",ttsTransport:"persistent-websocket",audioStored:false,creditsConfirmed:true,phrases:[],runs:[]};
+  const report:Record<string,any>={kind:"live-providers-synthetic-English-not-accent-eval",location:remote?"US-hosted":"Lahore local",browserLocation:"Lahore",sttModels:["flux-general-en","nova-3 language=multi"],tts:"aura-2-thalia-en",ttsTransport:"not-yet-verified",audioStored:false,creditsConfirmed:true,phrases:[],runs:[]};
   const fixtures:{text:string;id?:string;qty?:number;mustAsk?:string;size?:string;spice?:string;unavailable?:boolean}[]=ab?[
     {text:"Where are you located?"},{text:"One rice.",id:"RICE",qty:1,mustAsk:"spice level"},
     {text:"What are your hours?"},{text:"One mango lassi.",id:"MANGO_LASSI",qty:1}
@@ -45,6 +45,7 @@ async function main(sharedAudio?:Buffer[],forcedAck?:boolean){
     }
     report.readiness={launchOrFirstProbeToBrowserReadyMs:performance.now()-launchAt,applicationStartup:health?.startup??null,fixedAudio:health?.fixedAudio??null,unreadyObserved:unready,kind:remote?(unready?"readiness wait observed; idle-wake cause not verified":"already warm; no cold-start measurement"):"fresh local process application startup; excludes fixture synthesis"};
     if(!health?.ok)throw Error("Voice health never became ready");if(health.location!==report.location)throw Error("Deployment label mismatch; refusing to mislabel a local/tunnel server as US-hosted");
+    report.ttsTransport=health.ttsTransport??"not-reported";
     report.settings={endpointMode:health.endpointMode,adaptive:health.adaptive,endpointProfile:health.endpointProfile,speculationEnabled:health.speculationEnabled,cache:health.fixedAudio?.enabled,acknowledgement:health.fixedAudio?.acknowledgement,source:"server health"};await probeContext.close();
     for(const model of (ab?["flux","nova-3","nova-3-en-IN"]:["flux","nova-3"] )){
       const context=await browser.newContext();const page=await context.newPage();const pageErrors:string[]=[];page.on("pageerror",error=>pageErrors.push(error.message));

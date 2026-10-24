@@ -63,7 +63,7 @@ export class VoiceSession {
       if (!abort.signal.aborted && generation === this.generation) this.emit({ type: "audio_end", generation });
     } catch(error) {
       const reason=error instanceof Error&&/rate limit|timeout|connection|PCM/i.test(error.message)?/rate limit/i.test(error.message)?"rate_limit":/timeout/i.test(error.message)?"timeout":/PCM/i.test(error.message)?"invalid_pcm":"connection":"synthesis";
-      if (!abort.signal.aborted && !this.closed) this.emit({ type: "error", code: "tts_failed",reason, message: "Speech output failed. Your order is still visible; reconnect or choose another TTS provider." });
+      if (!abort.signal.aborted && !this.closed) this.emit({ type: "error", code: "tts_failed", reason, recoverable: true, generation, message: "Voice output failed. Read the reply below; your microphone and order are still active. You can keep speaking." });
     }
   }
   close() { this.closed = true; this.abort?.abort(); this.state = newState(); }

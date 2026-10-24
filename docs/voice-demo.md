@@ -1,6 +1,6 @@
 # Streaming voice demo
 
-Only `DEEPGRAM_API_KEY` is required for localhost. Put it privately in ignored `.env.local`, run `npm run dev:voice`, and open http://127.0.0.1:3000/voice in Chrome/Edge. If static assets are missing, run `npm run voice:prerender` once with signup credits. No Vapi, Twilio, Groq, Gemini or Anthropic call is made by the default voice path. Local `.env.example` contains names and empty placeholders only.
+Only `DEEPGRAM_API_KEY` is required for localhost. Put it privately in ignored `.env.local`, run `npm run dev:voice`, and open http://127.0.0.1:3000/voice in Chrome/Edge. Local calls need no password, even if a hosted code is configured. The visible `env.example` contains empty placeholders. If static assets are missing, run `npm run voice:prerender` once with signup credits. No Vapi, Twilio, Groq, Gemini or Anthropic call is made by the default voice path.
 
 The pipeline is browser mic/AudioWorklet → same-origin WebSocket → Deepgram → local order engine → Aura-2 → PCM playback. Calls last at most ten minutes, one concurrent session. Audio is transient. Barge-in stops scheduled playback and aborts stale synthesis; every audio frame carries a generation ID. Use headphones when testing echo/false interruptions.
 
@@ -14,13 +14,13 @@ Engine speculation is removed. Interims/eager Flux events never run the engine o
 
 ## TTS and static audio
 
-Aura-2 is default, using persistent WSS and `aura-2-thalia-en`, 24 kHz PCM. Kokoro remains an explicit `VOICE_TTS_PROVIDER=kokoro` adapter, without automatic provider fallback. Kokoro-js 1.2.1's May 2025 release cadence does not justify calling it actively maintained; prior CPU first-byte timings were several seconds. Keep the earlier measured limitation visible in [the original voice report](../eval/results/voice-phase.md).
+Aura-2 is default, using HTTP streaming and `aura-2-thalia-en`, 24 kHz PCM. Persistent WSS requires an explicit `VOICE_AURA_TRANSPORT=ws` choice. The laptop switch follows reproduced incomplete WebSocket replies, described in [the reliability follow-up](voice-reliability.md); it is not a new latency claim. Kokoro remains an explicit `VOICE_TTS_PROVIDER=kokoro` adapter, without automatic provider fallback. Kokoro-js 1.2.1's May 2025 release cadence does not justify calling it actively maintained; prior CPU first-byte timings were several seconds. Keep the earlier measured limitation visible in [the original voice report](../eval/results/voice-phase.md).
 
 `npm run build` pre-renders/checks thirty fixed synthetic clips before Next builds: templates, Okay/Got it, modifiers and nine final-menu names. Reviewed assets/manifest are committed under public/voice-audio. Unchanged builds reuse them without API requests. Runtime verifies hashes and loads files; missing/stale assets fail visibly rather than synthesizing at startup. No caller text, names, notes or audio can create a static asset.
 
 Leading cached fragments play while at most ONE dynamic tail is synthesized. Common names/modifiers can form cached leading fragments; punctuation is never sent as its own TTS job. If the reply starts with uncached text, a short cached Okay plays first (`VOICE_ACKNOWLEDGEMENT=false` disables it). Acknowledgement first byte, actual reply-content availability, and audible playback are different metrics. Okay is not order acceptance and does not replace read-back.
 
-TTS interruption sends Clear and waits for Cleared before another utterance. A missing acknowledgement closes the connection rather than mixing generations. Pronunciation overrides remain in voice/pronunciation.mjs, separate from menu aliases. The [91-entry pronunciation sheet](pronunciation-sheet.md) covers all 84 names plus seven modifiers; human pronunciation review is still pending. [Aura controls](https://developers.deepgram.com/docs/tts-websocket), [pronunciation controls](https://developers.deepgram.com/docs/tts-voice-controls).
+HTTP TTS interruption aborts the request and discards stale audio. With explicit WebSocket TTS, interruption sends Clear and waits for Cleared before another utterance; a missing acknowledgement closes the connection rather than mixing generations. A synthesis failure keeps the mic/cart active and shows the text reply. Pronunciation overrides remain in voice/pronunciation.mjs, separate from menu aliases. The [91-entry pronunciation sheet](pronunciation-sheet.md) covers all 84 names plus seven modifiers; human pronunciation review is still pending. [Aura controls](https://developers.deepgram.com/docs/tts-websocket), [pronunciation controls](https://developers.deepgram.com/docs/tts-voice-controls).
 
 ## Timing and privacy
 
