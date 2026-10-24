@@ -25,8 +25,8 @@ test("for after an item remains a preposition and never supplies quantity four",
   }
   assert.equal(api.matchUtterance("for roti")[0].qty,4,"STT repair directly before a recognized dish is retained");
 });
-test("repaired quantities are spoken before the spice prompt and in final read-back",async()=>{
-  let result=await turn(undefined,"too garlic naan");assert.equal(result.state.cart[0].qty,2);assert.match(result.reply,/quantity 2.*Garlic Naan Bread/);
+test("repaired quantities are spoken concisely when added and in final read-back",async()=>{
+  let result=await turn(undefined,"too garlic naan");assert.equal(result.state.cart[0].qty,2);assert.match(result.reply,/Added 2 Garlic Naan Bread/);assert.doesNotMatch(result.reply,/I heard quantity/);
   result=await turn(result.state,"Mild Spice");result=await turn(result.state,"that's all");result=await turn(result.state,"Ahmed");
   assert.match(result.reply,/2 Garlic Naan Bread/);assert.match(result.reply,/\$7\.98/);
 });
@@ -53,7 +53,7 @@ test("near-miss dishes offer a real replacement and never silently enter the car
   }
 });
 test("quantity repairs stay scoped to each item and conflicting counts need clarification",async()=>{
-  const result=await turn(undefined,"one chicken biryani and too garlic naan");assert.deepEqual(result.state.cart.map(c=>c.qty),[1,2]);assert.match(result.reply,/quantity 2/);
+  const result=await turn(undefined,"one chicken biryani and too garlic naan");assert.deepEqual(result.state.cart.map(c=>c.qty),[1,2]);assert.match(result.reply,/2 Garlic Naan Bread/);
   const conflict=await turn(undefined,"one too garlic naan");assert.equal(conflict.state.cart.length,0);assert.equal(conflict.state.recognition.issues[0].reason,"quantity");
 });
 test("Saag Paneer simulated ground truth uses source protein null",async()=>{

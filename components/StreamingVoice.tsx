@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { voiceCsv,type VoiceLogRow } from "@/voice/turn-log";
 import { mishearingsCsv } from "@/voice/mishearings";
 import { recoverableVoiceError,voiceErrorMessage } from "@/voice/connection-status";
+import { BARGE_IN_DEFAULTS,type BargeTrigger } from "@/voice/barge-in";
+import { PlaybackLedger } from "@/voice/playback";
 
 type Timing = { totalMs: number; endpointAndUplinkMs: number; engineMs: number; ttsFirstByteMs: number; returnNetworkMs: number; browserRttMs: number; clockUncertaintyMs: number };
 function percentiles(values: number[]) { const sorted = [...values].sort((a,b) => a-b); return { n: sorted.length, p50: sorted[Math.max(0, Math.ceil(sorted.length*.5)-1)]?.toFixed(1) ?? "—", p95: sorted[Math.max(0, Math.ceil(sorted.length*.95)-1)]?.toFixed(1) ?? "—" }; }
@@ -12,7 +14,7 @@ export default function StreamingVoice() {
   const [requiresAccessCode,setRequiresAccessCode]=useState(false),[partial,setPartial]=useState(""),[micLevel,setMicLevel]=useState(0);
   const [intended,setIntended]=useState<Record<string,string>>({});
   const [rows, setRows] = useState<{role:string;text:string}[]>([]), [cart, setCart] = useState<any[]>([]), [timings, setTimings] = useState<Timing[]>([]);
-  const cleanup = useRef<() => void>(() => {}); const interrupt = useRef<() => void>(() => {});
+  const cleanup = useRef<() => void>(() => {}); const interrupt = useRef<(trigger?:BargeTrigger) => void>(() => {});
   useEffect(() => {
     const abort=new AbortController();
     void fetch("/voice-health",{signal:abort.signal,cache:"no-store"}).then(response=>response.json()).then(health=>{if(!abort.signal.aborted)setRequiresAccessCode(health.requiresAccessCode===true);}).catch(()=>{});
@@ -25,16 +27,21 @@ export default function StreamingVoice() {
     let stopped = false, ready = false, generation = -1, minGeneration = 0, blocked = false, scheduled = 0, sync = { rtt: Infinity, offset: 0 };
     let lastEnd = NaN, lastEndAudio = NaN, audioStart: any, measuredGeneration = -1, pendingByte: number | undefined;
     const sources = new Set<AudioBufferSourceNode>();
-    const stopAudio = () => { for (const source of sources) { try { source.stop(); } catch {} } sources.clear(); scheduled = 0; pendingByte = undefined; };
+    const playback=new PlaybackLedger();
     const send=(message:Record<string,unknown>)=>{if(socket?.readyState===WebSocket.OPEN)socket.send(JSON.stringify(message));};
+    const publishPlayback=(id:number)=>{if(id<0)return;const metrics=playback.metrics(id);send({type:"playback",generation:id,metrics});setLogs(previous=>previous.map(row=>row.turnId.endsWith(`:${id}`)?{...row,playback:metrics}:row));};
+    const stopAudio = (trigger?:BargeTrigger) => {
+      if(trigger&&generation>=0){playback.interrupt(generation,trigger);publishPlayback(generation);}
+      for (const source of sources) { try { source.stop(); } catch {} } sources.clear(); scheduled = 0; pendingByte = undefined;
+    };
     const stopConnection = () => {
-      if (stopped) return; stopped = true; ready = false; clearInterval(pingTimer);clearTimeout(connectTimer);stopAudio();
+      if (stopped) return; stopped = true; ready = false; clearInterval(pingTimer);clearTimeout(connectTimer);stopAudio({source:"server_turn"});
       stream?.getTracks().forEach(track => track.stop()); worklet?.disconnect(); capture?.disconnect(); void context?.close().catch(()=>{});
       send({ type: "stop" });socket?.close();setActive(false);setMicLevel(0);setPartial("");
     };
     cleanup.current=stopConnection;
     const fail=(message:string)=>{if(!stopped){setStatus(message);stopConnection();}};
-    interrupt.current = () => { if(stopped||!ready)return;stopAudio(); blocked = true; minGeneration = Math.max(minGeneration, generation+1);send({ type: "barge_in" }); };
+    interrupt.current = (trigger={source:"manual"}) => { if(stopped||!ready)return;stopAudio(trigger); blocked = true; minGeneration = Math.max(minGeneration, generation+1);send({ type: "barge_in",...trigger }); };
     // Unlock audio in the actual button gesture. Permission/setup finishes
     // before opening billable STT, so a slow permission prompt cannot time out STT.
     try {
@@ -43,7 +50,7 @@ export default function StreamingVoice() {
       await context.audioWorklet.addModule("/voice-capture.js");
       stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1}});
       if(stopped){stream.getTracks().forEach(track=>track.stop());return;}
-      capture=context.createMediaStreamSource(stream);worklet=new AudioWorkletNode(context,"voice-capture");
+      capture=context.createMediaStreamSource(stream);worklet=new AudioWorkletNode(context,"voice-capture",{numberOfInputs:2,processorOptions:BARGE_IN_DEFAULTS});
       for(const track of stream.getAudioTracks())track.addEventListener("ended",()=>fail("The microphone disconnected. Check your input device and start again."));
     } catch {fail("Microphone permission or audio setup failed. Allow the microphone in this browser and use localhost or HTTPS.");return;}
     if(stopped)return;
@@ -58,7 +65,7 @@ export default function StreamingVoice() {
         if (!Number.isFinite(lastEndAudio)) lastEndAudio = performance.now()-data.audioSeconds*1000;
         if (socket.bufferedAmount > 32000) {fail("Audio upload cannot keep up; reconnect on a steadier network.");return;}
         socket.send(data.pcm);
-      } else if (data.type === "speech_start") { lastEnd = NaN; interrupt.current(); }
+      } else if (data.type === "speech_start") { lastEnd = NaN; interrupt.current({source:"browser_vad",energy:data.energy,threshold:data.threshold,speechMs:data.speechMs}); }
       else if (data.type === "speech_end") lastEnd = performance.now()-data.hangoverMs;
     };
     socket.onopen = () => {send({ type: "ping", sent: performance.now() });send({ type: "start", model,accessCode:requiresAccessCode?accessCode:"" });};
@@ -67,8 +74,8 @@ export default function StreamingVoice() {
     socket.onmessage = async event => {
       if (stopped) return;
       if (event.data instanceof ArrayBuffer) {
-        if (!context || !ready || blocked) return;
-        const view = new DataView(event.data); if (view.byteLength <= 4 || view.getUint32(0, true) !== generation) return;
+        const view = new DataView(event.data);if(view.byteLength<=4)return;const chunkGeneration=view.getUint32(0,true);
+        if (!context || !ready || blocked || chunkGeneration !== generation){playback.drop(chunkGeneration);publishPlayback(chunkGeneration);return;}
         const received = performance.now();
         if (audioStart && generation > 0 && measuredGeneration !== generation && Number.isFinite(lastEnd) && sync.rtt !== Infinity) {
           const finalBrowser = audioStart.finalAt - sync.offset, firstBrowser = audioStart.firstAt - sync.offset;
@@ -85,8 +92,10 @@ export default function StreamingVoice() {
         const buffer = context.createBuffer(1, count, 24000), floats = buffer.getChannelData(0), data = new DataView(bytes.buffer);
         for (let i = 0; i < count; i++) floats[i] = data.getInt16(i * 2, true)/32768;
         const source = context.createBufferSource(); source.buffer = buffer; source.connect(context.destination);
-        scheduled = Math.max(scheduled, context.currentTime + .015); source.start(scheduled); scheduled += buffer.duration;
-        sources.add(source); source.onended = () => { sources.delete(source); source.disconnect(); }; return;
+        if(worklet)source.connect(worklet,0,1);
+        scheduled = Math.max(scheduled, context.currentTime + .015);playback.schedule(generation,bytes.length-(pendingByte===undefined?0:1),scheduled,buffer.duration);source.start(scheduled); scheduled += buffer.duration;
+        const playingGeneration=generation;
+        sources.add(source); source.onended = () => { sources.delete(source); source.disconnect();playback.ended(playingGeneration);if(!stopped)publishPlayback(playingGeneration); }; return;
       }
       let msg: any; try { msg = JSON.parse(event.data); } catch { return; }
       if (msg.type === "pong") {
@@ -95,14 +104,16 @@ export default function StreamingVoice() {
       }
       if (msg.type === "error") {
         const message=msg.message||voiceErrorMessage(msg.code);
-        if(recoverableVoiceError(msg.code)){stopAudio();setStatus(message);return;}
+        if(recoverableVoiceError(msg.code)){stopAudio({source:"tts_error"});setStatus(message);return;}
         fail(message);return;
       }
       if(msg.type==="partial"){setPartial(msg.text);return;}
-      if (msg.type === "interrupt") { stopAudio(); generation = msg.generation; blocked = true; return; }
+      if(msg.type==="cart_revision"){setCart(msg.cart);return;}
+      if (msg.type === "interrupt") { stopAudio({source:msg.source==="continuation"?"continuation":"server_turn"}); generation = msg.generation; blocked = true; return; }
       if (msg.type === "audio_start") {
-        if (msg.generation < Math.max(generation,minGeneration)) return; generation = msg.generation; blocked = false; audioStart = msg; return;
+        if (msg.generation < Math.max(generation,minGeneration)) return; generation = msg.generation; blocked = false; audioStart = msg;playback.start(generation,Number(msg.acknowledgementBytes)||0);return;
       }
+      if(msg.type==="audio_end"){playback.serverEnd(msg.generation);publishPlayback(msg.generation);return;}
       if (msg.type === "transcript") {
         setPartial("");
         setRows(prev => [...prev.slice(-39), {role:"You",text:msg.text}]);
@@ -111,7 +122,7 @@ export default function StreamingVoice() {
         if (!Number.isFinite(lastEnd) && typeof msg.audioEndSeconds === "number" && Number.isFinite(lastEndAudio)) lastEnd = lastEndAudio + msg.audioEndSeconds*1000;
         return;
       }
-      if (msg.type === "reply") { setRows(prev => [...prev.slice(-39), {role:"Agent",text:msg.text}]); setCart(msg.cart); return; }
+      if (msg.type === "reply") {playback.reply(msg.generation,msg.text.length);setRows(prev => [...prev.slice(-39), {role:"Agent",text:msg.text}]); setCart(msg.cart); return; }
       if(msg.type==="turn_log"){setLogs(prev=>[...prev.filter(row=>row.turnId!==msg.row.turnId),msg.row].slice(-200));return;}
       if (msg.type !== "ready") return;
       clearTimeout(connectTimer);

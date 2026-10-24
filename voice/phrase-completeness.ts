@@ -11,7 +11,7 @@ export function phraseCompletion(text:string):Completion{
  return endings.some(ending=>heard===ending||heard.endsWith(` ${ending}`))?"complete":"uncertain";
 }
 export type AdaptiveWait={completeMs:number;incompleteMs:number;uncertainMs:number};
-export const DEFAULT_ADAPTIVE:AdaptiveWait={completeMs:1100,incompleteMs:1600,uncertainMs:1600};
+export const DEFAULT_ADAPTIVE:AdaptiveWait={completeMs:1100,incompleteMs:1600,uncertainMs:900};
 // Provisional per-model waits selected on the SAME six paired pause scenarios.
 // en-IN retains the safe fixed-duration fallback: faster candidates cut off a
 // complete prefix before its continued suffix. No accent/model winner implied.

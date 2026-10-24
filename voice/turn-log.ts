@@ -1,5 +1,6 @@
 // Shared, browser-safe log format. No audio, callback number or customer fields.
 import { redactPhoneNumbers } from "../lib/privacy";
+import type { PlaybackMetrics } from "./playback";
 export type LatencyStages = { totalMs: number; endpointAndUplinkMs: number; engineMs: number; ttsFirstByteMs: number; returnNetworkMs: number; browserRttMs: number; clockUncertaintyMs: number };
 export type VoiceLogRow = {
   turnId: string; atUtc: string; location: string; model: string; endpointProfile: string;
@@ -7,6 +8,8 @@ export type VoiceLogRow = {
   endpointReason: string; status: "awaiting_audio"|"first_audio"|"no_audio"|"failed";
   engineMs: number; ttsFirstByteMs: number|null; firstByteCached: boolean; speculativeHit: boolean; preparationMs:number;
   latency: LatencyStages|null; acknowledgement?:boolean;contentFirstByteMs?:number;
+  playback?:PlaybackMetrics;replyTextLength?:number;
+  engineProfile?:{recognitionMs:number;dialogMs:number;wallMs:number;cpuMs:number;phase:string;cartLinesBefore:number};
 };
 export function safeTranscript(text:string) {
   // Even spoken-out callback numbers must not enter logs. Display in the live
@@ -28,6 +31,7 @@ export function csvCell(value:unknown) {
   return '"'+text.replaceAll('"','""')+'"';
 }
 export function voiceCsv(rows:VoiceLogRow[]) {
-  const fields=["turn_id","at_utc","location","model","endpoint_profile","transcript_redacted","matched_cart","endpoint_reason","status","first_byte_cached","speculative_hit","preparation_ms","total_ms","stt_endpointing_uplink_ms","engine_ms","tts_first_byte_ms","return_network_ms","browser_rtt_ms","clock_uncertainty_ms","acknowledgement","tts_content_first_byte_ms"];
-  return [fields.map(csvCell).join(","),...rows.map(row=>[row.turnId,row.atUtc,row.location,row.model,row.endpointProfile,safeTranscript(row.transcript),row.matchedCart,row.endpointReason,row.status,row.firstByteCached,row.speculativeHit,row.preparationMs,row.latency?.totalMs,row.latency?.endpointAndUplinkMs,row.engineMs,row.ttsFirstByteMs,row.latency?.returnNetworkMs,row.latency?.browserRttMs,row.latency?.clockUncertaintyMs,row.acknowledgement??false,row.contentFirstByteMs].map(csvCell).join(","))].join("\r\n")+"\r\n";
+  const fields=["turn_id","at_utc","location","model","endpoint_profile","transcript_redacted","matched_cart","endpoint_reason","status","first_byte_cached","speculative_hit","preparation_ms","total_ms","stt_endpointing_uplink_ms","engine_ms","tts_first_byte_ms","return_network_ms","browser_rtt_ms","clock_uncertainty_ms","acknowledgement","tts_content_first_byte_ms","reply_text_length","playback_finished","interrupted_by_barge_in","barge_in_source","barge_in_energy","dropped_tts_chunks","late_tts_chunks","acknowledgement_gap_ms","playback_metrics"];
+  fields.push("engine_profile","max_playback_gap_ms");
+  return [fields.map(csvCell).join(","),...rows.map(row=>[row.turnId,row.atUtc,row.location,row.model,row.endpointProfile,safeTranscript(row.transcript),row.matchedCart,row.endpointReason,row.status,row.firstByteCached,row.speculativeHit,row.preparationMs,row.latency?.totalMs,row.latency?.endpointAndUplinkMs,row.engineMs,row.ttsFirstByteMs,row.latency?.returnNetworkMs,row.latency?.browserRttMs,row.latency?.clockUncertaintyMs,row.acknowledgement??false,row.contentFirstByteMs,row.replyTextLength,row.playback?.finished,row.playback?.interruptedByBargeIn,row.playback?.trigger?.source,row.playback?.trigger?.energy,row.playback?.droppedChunks,row.playback?.lateChunks,row.playback?.acknowledgementGapMs,row.playback,row.engineProfile,row.playback?.maxGapMs].map(csvCell).join(","))].join("\r\n")+"\r\n";
 }

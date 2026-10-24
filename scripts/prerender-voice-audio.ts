@@ -10,17 +10,19 @@ async function main(){
  if(existsSync(".env.local"))loadEnvFile(".env.local");
  const directory=path.resolve("public/voice-audio");mkdirSync(directory,{recursive:true});
  const previous=existsSync(path.join(directory,"manifest.json"))?JSON.parse(readFileSync(path.join(directory,"manifest.json"),"utf8")):undefined;
- const tts=new AuraTts(),rows=[];let generated=0,sourceCharacters=0;const started=performance.now();
+ const progressPath=path.resolve(".data/static-speech-progress.json"),progress=existsSync(progressPath)?JSON.parse(readFileSync(progressPath,"utf8")):[];
+ const tts=new AuraTts(60000),rows=[];let generated=0,sourceCharacters=0;const started=performance.now();
  try{for(const phrase of FIXED_PHRASES){
    const file=audioFile(phrase.text),target=path.join(directory,file);
-   const old=previous?.entries?.find((entry:any)=>entry.file===file);
+   const old=previous?.entries?.find((entry:any)=>entry.file===file)??progress.find((entry:any)=>entry.file===file);
    let pcm:Buffer|undefined;
    if(old&&existsSync(target)){const candidate=readFileSync(target);if(createHash("sha256").update(candidate).digest("hex")===old.sha256)pcm=candidate;}
    if(!pcm){
      if(process.argv.includes("--check"))throw Error("Static speech is missing or stale. Run npm run voice:prerender with signup credits.");
-     const chunks:Buffer[]=[];for await(const chunk of tts.speak(phrase.text,AbortSignal.timeout(30000)))chunks.push(chunk);
+     const chunks:Buffer[]=[];for await(const chunk of tts.speak(phrase.text,AbortSignal.timeout(60000)))chunks.push(chunk);
      pcm=Buffer.concat(chunks);if(!pcm.length||pcm.length%2)throw Error("Invalid build-only PCM");
      writeFileSync(target,pcm);generated++;sourceCharacters+=phrase.text.length;
+     mkdirSync(path.dirname(progressPath),{recursive:true});progress.push({file,sha256:createHash("sha256").update(pcm).digest("hex")});writeFileSync(progressPath,JSON.stringify(progress));
    }
    rows.push({id:phrase.id,text:phrase.text,file,bytes:pcm.length,sha256:createHash("sha256").update(pcm).digest("hex")});
  }}finally{tts.close();}

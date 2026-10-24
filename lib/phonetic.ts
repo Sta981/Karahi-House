@@ -117,6 +117,41 @@ export function preparedSimilarity(left: PreparedPhonetic, right: PreparedPhonet
   return 0.72 * phonSim + 0.28 * rawSim;
 }
 
+// Exact inside the accepted distance band, rejection outside it. No text cache.
+export function boundedEditDistance(a:string,b:string,limit:number):number{
+ if(a===b)return 0;if(Math.abs(a.length-b.length)>limit)return limit+1;
+ if(!a.length)return b.length;if(!b.length)return a.length;
+ const n=b.length,large=limit+1;let older=new Int32Array(n+1).fill(large),previous=new Int32Array(n+1).fill(large),current=new Int32Array(n+1).fill(large);
+ for(let j=0;j<=Math.min(n,limit);j++)previous[j]=j;
+ for(let i=1;i<=a.length;i++){
+  current.fill(large);if(i<=limit)current[0]=i;
+  for(let j=Math.max(1,i-limit);j<=Math.min(n,i+limit);j++){
+   current[j]=Math.min(previous[j]+1,current[j-1]+1,previous[j-1]+(a[i-1]===b[j-1]?0:1));
+   if(i>1&&j>1&&a[i-1]===b[j-2]&&a[i-2]===b[j-1])current[j]=Math.min(current[j],older[j-2]+1);
+  }
+  const swap=older;older=previous;previous=current;current=swap;
+ }
+ return previous[n];
+}
+const LETTER_COUNTS=new WeakMap<PreparedPhonetic,{raw:Uint16Array;code:Uint16Array}>();
+function counts(value:PreparedPhonetic){
+ let result=LETTER_COUNTS.get(value);if(!result){const raw=new Uint16Array(26),code=new Uint16Array(26);for(const letter of value.normalized)raw[letter.charCodeAt(0)-97]++;for(const letter of value.code)code[letter.charCodeAt(0)-97]++;result={raw,code};LETTER_COUNTS.set(value,result);}return result;
+}
+function frequencyLowerBound(left:Uint16Array,right:Uint16Array){let difference=0;for(let index=0;index<26;index++)difference+=Math.abs(left[index]-right[index]);return Math.ceil(difference/2);}
+export function similarityAtLeast(left:PreparedPhonetic,right:PreparedPhonetic,threshold:number):number{
+ const a=left.normalized,b=right.normalized,pa=left.code,pb=right.code;
+ if(!a||!b)return 0;if(a===b)return 1;
+ if(!pa||!pb)return threshold>.28?0:preparedSimilarity(left,right);
+ const lcounts=counts(left),rcounts=counts(right),rmax=Math.max(a.length,b.length),rawLower=Math.max(Math.abs(a.length-b.length),frequencyLowerBound(lcounts.raw,rcounts.raw));
+ const rawUpper=1-rawLower/rmax,pmax=Math.max(pa.length,pb.length),pLimit=Math.floor(pmax*(1-(threshold-.28*rawUpper)/.72)+1e-9);
+ if(pLimit<0||frequencyLowerBound(lcounts.code,rcounts.code)>pLimit)return 0;
+ const pd=boundedEditDistance(pa,pb,pLimit);if(pd>pLimit)return 0;
+ const phon=1-pd/pmax,rLimit=Math.floor(rmax*(1-(threshold-.72*phon)/.28)+1e-9);
+ if(rLimit<rawLower)return 0;
+ const rd=boundedEditDistance(a,b,rLimit);if(rd>rLimit)return 0;
+ return .72*phon+.28*(1-rd/rmax);
+}
+
 // Similarity in [0,1] combining phonetic-code distance and raw-string distance.
 export function similarity(rawA: string, rawB: string): number {
   return preparedSimilarity(preparePhonetic(rawA), preparePhonetic(rawB));

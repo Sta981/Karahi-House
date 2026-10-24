@@ -24,7 +24,7 @@
       "session": "A",
       "reset": false,
       "text": "Please add one chicken biryani.",
-      "expected": "1 Chicken Biryani; ask the order spice level."
+      "expected": "1 Chicken Biryani; keep collecting. Ask whole-order spice only when done."
     },
     {
       "id": "mic_03",
@@ -176,7 +176,7 @@
       "session": "D",
       "reset": true,
       "text": "Mujhe aik chicken biryani chahiye.",
-      "expected": "1 Chicken Biryani; ask spice."
+      "expected": "1 Chicken Biryani; keep collecting. Ask whole-order spice only when done."
     },
     {
       "id": "mic_22",

@@ -54,6 +54,7 @@ export class KokoroTts implements Tts {
 }
 export class AuraTts implements Tts {
   name = "aura-2";
+  constructor(private timeoutMs=20000){}
   async warm() { if (!process.env.DEEPGRAM_API_KEY?.trim()) throw Error("DEEPGRAM_API_KEY is missing"); }
   async *speak(text: string, signal: AbortSignal) {
     // Escaped IPA objects expand request length. Split BEFORE the documented
@@ -64,7 +65,7 @@ export class AuraTts implements Tts {
     const key = process.env.DEEPGRAM_API_KEY?.trim(); if (!key) throw Error("DEEPGRAM_API_KEY is missing");
     const url = new URL("https://api.deepgram.com/v1/speak");
     for (const [key, value] of Object.entries({ model: "aura-2-thalia-en", encoding: "linear16", sample_rate: "24000", container: "none", mip_opt_out: "true" })) url.searchParams.set(key, value);
-    const response = await fetch(url, { method: "POST", signal: AbortSignal.any([signal, AbortSignal.timeout(20000)]), headers: { Authorization: `Token ${key}`, "Content-Type": "application/json" }, body: JSON.stringify({ text: auraPronunciation(text) }) });
+    const response = await fetch(url, { method: "POST", signal: AbortSignal.any([signal, AbortSignal.timeout(this.timeoutMs)]), headers: { Authorization: `Token ${key}`, "Content-Type": "application/json" }, body: JSON.stringify({ text: auraPronunciation(text) }) });
     if (!response.ok || !response.body) { await response.body?.cancel(); throw Error(`Aura synthesis HTTP ${response.status}`); }
     let pending = Buffer.alloc(0);
     for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {

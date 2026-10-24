@@ -10,10 +10,14 @@ const PLURALS: Record<string,string> = {
 };
 const FILLERS = new Set(["um","uh","erm","umm","uhh","please","plz","sir","brother","yaar","bhai","jaan","packing","parcel","takeout","regular","chahiye","dena","dein","deejiye","dijiye","wali","wala"]);
 const FLAVORS=[...new Set(MENU.filter(item=>/lassi$/i.test(item.name)).map(item=>item.name.toLowerCase().split(" ")[0]))];
+const BREAD_CONTEXT=new Set(["garlic","plain","cheese","chili","onion","keema"]);
+const NAAN_MISHEARINGS=new Set(["none","knot","nun","non"]);
 export function speechTokens(text:string):string[]{
   let value=text.toLowerCase().replace(/\bsaath\s+mein\b/g,"and").replace(/\bde\s+(?:dein|do|dena)\b/g," ");
   let tokens=value.replace(/[^a-z0-9\s]/g," ").split(/\s+/).filter(Boolean).map(token=>PLURALS[token]??token).filter(token=>!FILLERS.has(token));
   tokens=tokens.filter((token,index)=>index===0||token!==tokens[index-1]);
+  // Context-only STT repair. "none" elsewhere retains its ordinary meaning.
+  tokens=tokens.map((token,index)=>NAAN_MISHEARINGS.has(token)&&(BREAD_CONTEXT.has(tokens[index-1])||BREAD_CONTEXT.has(tokens[index+1]))?"naan":token);
   // Trailing flavor stays inside this item clause; never cross a conjunction.
   for(let i=0;i<tokens.length-1;i++)if(["lassi","lasi"].includes(tokens[i])&&FLAVORS.includes(tokens[i+1])){
     [tokens[i],tokens[i+1]]=[tokens[i+1],tokens[i]];

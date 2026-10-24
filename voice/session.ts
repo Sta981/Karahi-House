@@ -3,12 +3,16 @@ import { runSmartTurn } from "../lib/brain";
 import { GREETING, newState } from "../lib/dialog";
 import { getItem,MODIFIERS } from "../lib/menu";
 import type { Emit, Tts } from "./contracts";
+import type { DialogState } from "../lib/dialog";
+import { rollbackCartOperations,type CartOperation } from "../lib/cart-journal";
+import type { BargeTrigger } from "./barge-in";
 
 export class VoiceSession {
   private state = newState();
   private generation = 0;
   private abort?: AbortController;
   private closed = false;
+  private checkpoint?:{before:DialogState;text:string;operations:CartOperation[];committed:boolean;generation:number};
   constructor(private tts: Tts, private emit: Emit, private faqEnabled = false) {}
   recognitionHints():string[]{
     if(this.state.pendingCorrection)return ["no",...this.state.cart.map(line=>getItem(line.itemId)!.name)];
@@ -18,25 +22,38 @@ export class VoiceSession {
     if(this.state.phase==="confirm")return ["yes","no"];
     return [];
   }
-  interrupt() {
+  interrupt(trigger:BargeTrigger={source:"server_turn"}) {
     this.abort?.abort(); this.abort = undefined;
     this.generation++;
-    this.emit({ type: "interrupt", generation: this.generation });
+    this.emit({ type: "interrupt", generation: this.generation,...trigger });
   }
   async greet() { await this.reply(GREETING, 0, performance.now()); }
-  async turn(text: string, audioEndSeconds: number | null = null, endpointReason = "manual_final") {
+  async turn(text: string, audioEndSeconds: number | null = null, endpointReason = "manual_final",continuation?:{of:string;fragment:string}) {
     if (this.closed || !text.trim() || text.length > 1000) return;
+    let supersedesGeneration:number|undefined;
+    if(continuation){
+      const previous=this.checkpoint;
+      const finite=/^(?:half|full|haf|fool|have|yes|no|chicken|goat|lamb|beef|fish|shrimp|paneer|karahi|naan|spicy|extra spicy|medium(?: spice)?|mild(?: spice)?|no spice)[.!]?$/i.test(continuation.fragment.trim());
+      if(previous?.text===continuation.of&&!finite&&!['ask_name','confirm','closed'].includes(this.state.phase)&&!this.state.checkoutRequested){
+        const cart=previous.committed?rollbackCartOperations(this.state.cart,previous.operations):structuredClone(previous.before.cart);
+        this.state={...structuredClone(previous.before),cart};supersedesGeneration=previous.generation;
+        this.emit({type:"cart_revision",supersedesGeneration,cart:this.state.cart,reason:"continuation_rollback"});
+      }else text=continuation.fragment;
+    }
     this.interrupt();
     const generation = this.generation, finalAt = performance.now();
     this.emit({ type: "transcript", text, generation, audioEndSeconds, finalAt, endpointReason });
-    const start = performance.now();
+    const start = performance.now(),cpu=process.cpuUsage();let engineProfile:Record<string,unknown>|undefined;
+    const checkpoint={before:structuredClone(this.state),text,operations:[] as CartOperation[],committed:false,generation};this.checkpoint=checkpoint;
     // No provider is touched by default, even when Groq credentials exist.
     // Existing brain guards limit the optional FAQ path; it cannot mutate orders.
-    const result = await runSmartTurn(this.state, text, [], { provider: this.faqEnabled ? undefined : null, onRouting: () => {} });
+    const result = await runSmartTurn(this.state, text, [], { provider: this.faqEnabled ? undefined : null, onRouting: () => {},onProfile:value=>{engineProfile=value;} });
     if (this.closed || generation !== this.generation) return;
     this.state = result.state;
+    checkpoint.operations=result.operations??[];checkpoint.committed=true;
     const engineMs = performance.now() - start;
-    this.emit({ type: "reply", text: result.reply, cart: this.state.cart, generation, usedLLM: result.usedLLM, engineMs, finalAt, endpointReason, speculativeHit:false, preparationMs:0 });
+    const usedCpu=process.cpuUsage(cpu);
+    this.emit({ type: "reply", text: result.reply, cart: this.state.cart, generation, usedLLM: result.usedLLM, engineMs,engineProfile:{...engineProfile,cpuMs:(usedCpu.user+usedCpu.system)/1000,phase:checkpoint.before.phase,cartLinesBefore:checkpoint.before.cart.length},supersedesGeneration, finalAt, endpointReason, speculativeHit:false, preparationMs:0 });
     await this.reply(result.reply, engineMs, finalAt, generation);
   }
   private async reply(text: string, engineMs: number, finalAt: number, generation = this.generation) {
@@ -51,7 +68,7 @@ export class VoiceSession {
         if (!chunk.length) continue;
         const firstAt = performance.now();
         if (first) {
-          this.emit({ type: "audio_start", generation, sampleRate: 24000, finalAt, firstAt, engineMs, ttsFirstByteMs: firstAt - requestedAt, firstByteCached: audioPlan?.firstByteCached ?? false,acknowledgement:!!audioPlan?.acknowledgementBytes });
+          this.emit({ type: "audio_start", generation, sampleRate: 24000, finalAt, firstAt, engineMs, ttsFirstByteMs: firstAt - requestedAt, firstByteCached: audioPlan?.firstByteCached ?? false,acknowledgement:!!audioPlan?.acknowledgementBytes,acknowledgementBytes:audioPlan?.acknowledgementBytes??0 });
           first = false;
         }
         if(contentFirst&&sentBytes>=(audioPlan?.acknowledgementBytes??0)){contentFirst=false;this.emit({type:"content_start",generation,at:performance.now(),finalAt,contentFirstByteMs:performance.now()-requestedAt});}
@@ -66,5 +83,5 @@ export class VoiceSession {
       if (!abort.signal.aborted && !this.closed) this.emit({ type: "error", code: "tts_failed", reason, recoverable: true, generation, message: "Voice output failed. Read the reply below; your microphone and order are still active. You can keep speaking." });
     }
   }
-  close() { this.closed = true; this.abort?.abort(); this.state = newState(); }
+  close() { this.closed = true; this.abort?.abort(); this.state = newState();this.checkpoint=undefined; }
 }

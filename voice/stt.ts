@@ -19,13 +19,13 @@ export function boundedKeyterms(terms:string[]):string[]{
 // it is not a claim to implement Deepgram's private tokenizer.
 export const KEYTERMS=boundedKeyterms(["chicken karahi","garlic naan","seekh kabab",...MENU_WORDS.filter(word=>!COMMON_WORDS.has(word.toLowerCase()))]);
 export const stateKeyterms=(answers:string[])=>boundedKeyterms([...answers,...KEYTERMS]);
-export function sttUrl(model: SttModel, settings = endpointSettings(model)) {
+export function sttUrl(model: SttModel, settings = endpointSettings(model),terms:readonly string[]=KEYTERMS) {
   const url = new URL(model === "flux" ? "wss://api.deepgram.com/v2/listen" : "wss://api.deepgram.com/v1/listen");
   const options = model === "flux" ? { model: "flux-general-en", eot_threshold: String(settings.fluxThreshold), eot_timeout_ms: String(settings.fluxTimeoutMs) } :
     { model: "nova-3", language: model==="nova-3-en-IN"?"en-IN":"multi", channels: "1", interim_results: "true", vad_events: "true", endpointing: String(settings.novaEndpointMs), utterance_end_ms: String(settings.novaUtteranceEndMs) };
   for (const [key, value] of Object.entries({ ...options, encoding: "linear16", sample_rate: "16000", mip_opt_out: "true" }))
     if (value !== undefined) url.searchParams.set(key, value);
-  for (const term of KEYTERMS) url.searchParams.append("keyterm", term);
+  for (const term of boundedKeyterms([...terms])) url.searchParams.append("keyterm", term);
   return url.toString();
 }
 
@@ -70,10 +70,11 @@ export class TranscriptDecoder {
   }
 }
 
-export async function openStt(model: SttModel, emit: (event: SttEvent) => void, settings?: EndpointSettings): Promise<SttStream> {
+export async function openStt(model: SttModel, emit: (event: SttEvent) => void, settings?: EndpointSettings,options?:{keyterms?:string[]}): Promise<SttStream> {
   const key = process.env.DEEPGRAM_API_KEY?.trim();
   if (!key) throw Error("DEEPGRAM_API_KEY is missing");
-  const socket = new WebSocket(sttUrl(model,settings), { headers: { Authorization: `Token ${key}` }, handshakeTimeout: 15000 });
+  const url=sttUrl(model,settings,options?.keyterms??KEYTERMS);
+  const socket = new WebSocket(url, { headers: { Authorization: `Token ${key}` }, handshakeTimeout: 15000 });
   const decoder = new TranscriptDecoder(model, emit);
   let closed = false;
   socket.on("message", bytes => {
@@ -86,8 +87,9 @@ export async function openStt(model: SttModel, emit: (event: SttEvent) => void, 
     socket.once("error", () => reject(Error("Deepgram connection failed; check key, credits and network")));
     socket.once("unexpected-response", (_req, res) => { res.resume(); socket.terminate(); reject(Error(`Deepgram handshake HTTP ${res.statusCode}`)); });
   });
+  console.log(JSON.stringify({event:"stt_connected",model,keytermCount:new URL(url).searchParams.getAll("keyterm").length}));
   return {
-    configureKeyterms(terms){if(!closed&&socket.readyState===WebSocket.OPEN)socket.send(JSON.stringify({type:"Configure",keyterms:boundedKeyterms(terms)}));},
+    configureKeyterms(terms){if(!closed&&socket.readyState===WebSocket.OPEN){const bounded=boundedKeyterms(terms);socket.send(JSON.stringify({type:"Configure",keyterms:bounded}));console.log(JSON.stringify({event:"stt_keyterms_sent",model,keytermCount:bounded.length}));}},
     send(pcm) {
       if (closed || socket.readyState !== WebSocket.OPEN) return;
       if (socket.bufferedAmount > 128000) { emit({ type: "error", code: "stt_audio_backpressure" }); return; }

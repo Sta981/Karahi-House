@@ -6,6 +6,7 @@ import { buildLlmRequest } from "./llm-context";
 import { LanguageModel, getLanguageModel, parseLlmReply } from "./llm";
 import { RoutingEvent, recordTurn } from "./turn-metrics";
 import { MENU_SOURCE_SHA256 } from "./menu";
+import type { CartOperation } from "./cart-journal";
 
 export interface SmartTurnResult {
   reply: string;
@@ -15,12 +16,14 @@ export interface SmartTurnResult {
   endCall?: boolean;
   usedLLM: boolean;
   routing: RoutingEvent;
+  operations?:CartOperation[];
 }
 
 export interface SmartTurnOptions {
   // null explicitly disables network access, including when credentials exist.
   provider?: LanguageModel | null;
   onRouting?: (event: RoutingEvent) => void;
+  onProfile?:(profile:{recognitionMs:number;dialogMs:number;wallMs:number;route:string})=>void;
 }
 
 export async function runSmartTurn(
@@ -29,10 +32,12 @@ export async function runSmartTurn(
   _history: { role: "user" | "assistant"; text: string }[],
   options: SmartTurnOptions = {},
 ): Promise<SmartTurnResult> {
+  const profileStart=performance.now();let recognitionMs=0,dialogMs=0;
   const state = prevState?.cart && prevState.menuHash === MENU_SOURCE_SHA256 ? prevState : newState();
   const record = options.onRouting ?? recordTurn;
   const finish = (result: Omit<SmartTurnResult, "routing">, routing: RoutingEvent): SmartTurnResult => {
     record(routing);
+    options.onProfile?.({recognitionMs,dialogMs,wallMs:performance.now()-profileStart,route:routing.route});
     return { ...result, routing };
   };
   const trimmed = text.trim();
@@ -41,8 +46,8 @@ export async function runSmartTurn(
       { route: "local", outcome: "local", candidateCount: 0 });
   }
 
-  const analysis = analyzeUtterance(trimmed);
-  const local = runTurn(state, trimmed, analysis);
+  const recognitionStart=performance.now();const analysis = analyzeUtterance(trimmed);recognitionMs=performance.now()-recognitionStart;
+  const dialogStart=performance.now();const local = runTurn(state, trimmed, analysis);dialogMs=performance.now()-dialogStart;
   // Pending confirmations, staff review and checkout remain local even if the
   // legacy dialog marks a failed clarification as needing conversational help.
   const guarded = state.phase !== "open" || state.recognition || state.pendingCorrection || state.needsReview ||
@@ -51,12 +56,12 @@ export async function runSmartTurn(
     return finish({ ...local, usedLLM: false }, { route: "local", outcome: "local", candidateCount: 0 });
   }
 
-  const request = buildLlmRequest(trimmed, local.state, analysis.matches);
-  const candidateCount = request.candidateCount;
   const provider = options.provider === undefined ? getLanguageModel() : options.provider;
   if (!provider) {
-    return finish({ ...local, usedLLM: false }, { route: "llm_needed", outcome: "disabled", candidateCount });
+    return finish({ ...local, usedLLM: false }, { route: "llm_needed", outcome: "disabled", candidateCount:0 });
   }
+  const request = buildLlmRequest(trimmed, local.state, analysis.matches);
+  const candidateCount = request.candidateCount;
   try {
     const raw = await provider.completeJson(request);
     const reply = parseLlmReply(raw, request.allowedReplies);

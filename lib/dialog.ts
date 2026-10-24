@@ -1,9 +1,9 @@
 // Deterministic order facts. The optional LLM never sets items or modifiers.
 import { CATERING, MENU, MODIFIERS, RESTAURANT, MENU_SOURCE_SHA256, getItem, unitPriceCents } from "./menu";
-import { Match, RecognitionAnalysis, RecognitionIssue, analyzeUtterance, extractQuantityHint, extractVariantHints } from "./matcher";
+import { Match, RecognitionAnalysis, RecognitionIssue, analyzeUtterance, candidateQuestion, extractQuantityHint, extractVariantHints } from "./matcher";
 import { redactPhoneNumbers } from "./privacy";
 import { speechText } from "./speech";
-import { hasCorrectionMarkers, isRemovalCommand, planLocalCorrection, OrderEntry, OrderSegment } from "./order-operations";
+import { hasCorrectionMarkers, isRemovalCommand, planLocalCorrection, segmentLocalCorrection, targetIndexes, OrderEntry, OrderSegment } from "./order-operations";
 import { CartOperation, recordCartOperations } from "./cart-journal";
 import { similarity } from "./phonetic";
 import { speechTokens } from "./speech";
@@ -26,6 +26,8 @@ export interface DialogState {
   catering?: { date?: string; headcount?: number };
   lastReply?:string; recoveryMisses?:number;
   answerConfirmation?:{kind:"size"|"spice"|"yesno";value:string};
+  checkoutRequested?:boolean;spiceAsked?:boolean;
+  removalConfirmation?:{index:number;itemId:string;qty:number;target:string};
 }
 export interface CallSummary {
   kind: "order" | "inquiry" | "catering"; status: "pending_acceptance" | "needs_review";
@@ -49,7 +51,7 @@ function constrainedAnswer(text:string,kind:"size"|"spice"|"yesno",choices:strin
   if((ranked[0]?.score??0)>=.8&&ranked[0].score-(ranked[1]?.score??0)>=.08)return {confirm:ranked[0].value};
   return {};
 }
-export const GREETING = `Welcome to the ${RESTAURANT.name} demo. The menu is approved by the restaurant. What can I get for you?`;
+export const GREETING = `Thanks for calling ${RESTAURANT.name}. What would you like?`;
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 export function cartTotalCents(cart: CartLine[]): number {
   return cart.reduce((total, line) => total + unitPriceCents(getItem(line.itemId)!, line.size) * line.qty, 0);
@@ -72,6 +74,7 @@ export function requiresStaffReview(text: string): boolean {
 const YES = /^(?:yes|yeah|yep|correct|haan|han|ji|okay|ok|sure)(?=$|[\s,.!])/i;
 const DONE = /\b(?:that'?s (?:all|it)|that (?:will|would) be all|nothing else|checkout|check out|bas|khatam|i'?m done)\b/i;
 const spiceOptions = MODIFIERS.spice_level.options;
+export const ORDER_SPICE_QUESTION=`Spice for the order: ${spiceOptions.join(", ")}?`;
 function spiceFrom(text: string): string | undefined {
   const lower = text.toLowerCase();
   const exact = spiceOptions.find(option => lower.includes(option.toLowerCase()));
@@ -93,19 +96,22 @@ function applyOrderSpice(s: DialogState, spice: string) {
 function modifierQuestion(s: DialogState): string | undefined {
   if (s.pending) { s.phase = "ask_variant"; return `Half or Full for ${getItem(s.pending.itemId)!.name}?`; }
   if (s.spiceClarification) { s.phase = "ask_spice"; return 'By "hot", do you mean Spicy or Extra Spicy?'; }
-  if (s.cart.some(line => getItem(line.itemId)!.spice && !line.spiceLevel)) {
+  if (s.checkoutRequested && s.cart.some(line => getItem(line.itemId)!.spice && !line.spiceLevel)) {
     s.phase = "ask_spice";
-    return `What spice level for the whole order: ${spiceOptions.join(", ")}? You can change individual dishes.`;
+    const asked=s.spiceAsked;s.spiceAsked=true;
+    return asked?`Please choose: ${spiceOptions.join(", ")}.`:ORDER_SPICE_QUESTION;
   }
+  if(s.checkoutRequested&&s.cart.length){s.phase="ask_name";return "What name for pickup?";}
   s.phase = "open";
 }
 function pendingQuestion(s:DialogState):string|undefined{
+  if(s.removalConfirmation)return `Remove ${s.cart[s.removalConfirmation.index]?.name??"that item"}?`;
   if(s.answerConfirmation)return `Did you mean ${s.answerConfirmation.value}?`;
   if(s.pendingCorrection)return `You have ${cartSpoken(s.cart)}. Which existing item should I ${s.pendingCorrection.segment.action==="remove"?"remove":"change"}?`;
   if(s.recognition)return s.recognition.issues[0]?.question;
   if(s.pending)return `Half or Full for ${getItem(s.pending.itemId)!.name}?`;
   if(s.spiceClarification)return 'By "hot", do you mean Spicy or Extra Spicy?';
-  if(s.cart.some(line=>getItem(line.itemId)!.spice&&!line.spiceLevel))return `What spice level for the whole order: ${spiceOptions.join(", ")}? You can change individual dishes.`;
+  if(s.checkoutRequested&&s.cart.some(line=>getItem(line.itemId)!.spice&&!line.spiceLevel))return ORDER_SPICE_QUESTION;
   if(s.phase==="ask_name")return "What name should I put on the pickup request?";
   if(s.phase==="confirm")return "Is the order I read back correct?";
 }
@@ -121,7 +127,7 @@ function priceTurn(s:DialogState,text:string,analysis:RecognitionAnalysis):TurnR
     if(!ids.length&&s.cart.length===1)ids.push(s.cart[0].itemId);
     answer=ids.length?ids.slice(0,4).map(id=>{const item=getItem(id)!;return item.size?`${item.name}: Half ${money(item.price_cents)}, Full ${money(item.price_cents+item.size.Full)}.`:`${item.name} is ${money(item.price_cents)}.`;}).join(" "):"Which item's price would you like?";
   }
-  return {reply:`${answer}${resume?` ${resume}`:""}`,state:s,matches:[]};
+  return {reply:`${answer}${resume&&!answer.endsWith("?")?` ${resume}`:""}`,state:s,matches:[]};
 }
 function addDraft(s: DialogState, draft: PendingItem) {
   const item = getItem(draft.itemId)!;
@@ -176,6 +182,19 @@ function correctionOperationsTurn(s:DialogState,text:string):TurnResult|undefine
      !isRemovalCommand(text)&&!/\b(?:replace|swap|switch)\b/i.test(text))return;
   const initial:OrderEntry[]=[...s.cart.map(line=>({itemId:line.itemId,qty:line.qty,portion:line.size?.toLowerCase() as "half"|"full"|undefined,spiceLevel:line.spiceLevel,spiceSource:line.spiceSource,notes:line.notes})),
     ...[s.pending,...(s.queued??[])].filter((entry):entry is PendingItem=>Boolean(entry))];
+  const segments=segmentLocalCorrection(text);
+  if(segments.length===1&&segments[0].action==="remove"){
+    const target=segments[0].text,indexes=targetIndexes(initial,target);
+    if(indexes.length===1&&indexes[0]<s.cart.length){
+      const index=indexes[0],item=getItem(s.cart[index].itemId)!;
+      const literal=target.toLowerCase().replace(/[^a-z\s]/g," ").split(/\s+/).filter(word=>word&&!['the','now','please','one','two','three','four','a','an'].includes(word)).join(" ");
+      const exact=[item.name,item.website_name,...item.aliases].filter(Boolean).some(label=>label!.toLowerCase()===literal);
+      if(!exact&&!/^(?:it|that|last(?: item| one)?|everything|whole order|all items|entire order)$/i.test(target.trim())){
+        s.removalConfirmation={index,itemId:item.id,qty:s.cart[index].qty,target};
+        return {reply:`Remove ${item.name}?`,state:s,matches:[]};
+      }
+    }
+  }
   const plan=planLocalCorrection(text,initial,value=>decorateAnalysis(value,analyzeUtterance(value)));
   if(!plan)return;
   s.phase="open";s.pending=undefined;s.queued=[];s.cart=[];s.pendingCorrection=undefined;
@@ -193,11 +212,15 @@ function correctionOperationsTurn(s:DialogState,text:string):TurnResult|undefine
     s.recognition={issues:plan.issues,matches:[],attempts:0,...(target?{replacement:{itemId:target.itemId,index:plan.replaceIndex!}}:{})};
     return {reply:plan.issues[0].question,state:s,matches:plan.changed};
   }
-  if(plan.question){s.pendingCorrection={segment:plan.blockedSegment??plan.segments[plan.segments.length-1],attempts:0};return {reply:`${s.cart.length?`You have ${cartSpoken(s.cart)}. `:"Your cart is empty. "}${plan.question}`,state:s,matches:plan.changed};}
+  if(plan.question){
+    const segment=plan.blockedSegment??plan.segments[plan.segments.length-1];s.pendingCorrection={segment,attempts:0};
+    const tied=segment?.action==="remove"&&targetIndexes(initial,segment.text).length>1;
+    return {reply:`${tied?`You have ${cartSpoken(s.cart)}. `:""}${plan.question}`,state:s,matches:plan.changed};
+  }
   return {reply:`Updated${plan.changed.length?`: ${plan.changed.map(match=>`${match.qty} ${match.name}${match.portion?`, ${match.portion}`:""}`).join("; ")}`:""}. ${processed.ask??`Subtotal ${money(cartTotalCents(s.cart))}. Anything else?`}`,state:s,matches:plan.changed};
 }
 function quantityReadback(matches: Match[]): string {
-  return matches.filter(match => match.quantityHeard).map(match => `I heard quantity ${match.qty} for ${match.name}. `).join("");
+  return matches.filter(match => match.quantityUncertain).map(match => `Did you mean ${match.qty} ${match.name}? `).join("");
 }
 function recognitionTurn(s: DialogState, text: string, analysis: ReturnType<typeof analyzeUtterance>): TurnResult | undefined {
   if (!s.recognition) {
@@ -214,7 +237,17 @@ function recognitionTurn(s: DialogState, text: string, analysis: ReturnType<type
   const negated = /\b(?:no|not|don'?t|nahi|nahin|without)\b/i.test(text);
   let selections: Match[] = [];
 
-  if (!cancel && !negated) {
+  if(!cancel&&!negated&&analysis.issues.length){
+    const ids=new Set(analysis.issues.flatMap(entry=>entry.candidates.map(candidate=>candidate.itemId)));
+    const narrowed=issue.candidates.filter(candidate=>ids.has(candidate.itemId));
+    if(narrowed.length&&narrowed.length<issue.candidates.length){
+      issue.candidates=narrowed;issue.question=candidateQuestion(narrowed);
+      if(narrowed.length===1)selections=[{...narrowed[0],...extractVariantHints(text),requiresConfirmation:false}];
+      else return {reply:issue.question,state:s,matches:[]};
+    }
+  }
+
+  if (!cancel && !negated && !selections.length) {
     const explicit = analysis.matches.filter((match) => issue.candidates.some((candidate) => candidate.itemId === match.itemId));
     if (explicit.length === 1 && !analysis.issues.length) {
       const candidate = issue.candidates.find((entry) => entry.itemId === explicit[0].itemId)!;
@@ -301,6 +334,17 @@ function runTurnCore(state: DialogState, rawText: string, providedAnalysis?: Rec
   }
   const price=/\b(?:price|prices|cost|total|subtotal|bill|how much)\b/i.test(text)?priceTurn(s,text,providedAnalysis??analyzeUtterance(text)):undefined;
   if(price)return price;
+  if(s.removalConfirmation){
+    const confirmation=s.removalConfirmation,line=s.cart[confirmation.index],answer=constrainedAnswer(text,"yesno",["yes","no"]).value;
+    if(answer==="no"){s.removalConfirmation=undefined;return reply("Kept it. Anything else?");}
+    if(answer!=="yes")return reply(`Remove ${line?.name??"that item"}? Please say yes or no.`);
+    s.removalConfirmation=undefined;
+    if(!line||line.itemId!==confirmation.itemId||line.qty!==confirmation.qty)return reply("The cart changed. Which item should I remove?");
+    const qty=extractQuantityHint(confirmation.target);
+    text=`remove ${qty===undefined?"":`${qty} `}${line.name}`;providedAnalysis=undefined;
+  }
+  const done=DONE.test(text)||/^(?:no|nope|nah|nahi)[.!]?$/i.test(text)&&s.phase==="open"&&!!s.cart.length&&!s.recognition&&!s.pendingCorrection;
+  if(done)s.checkoutRequested=true;
   // Answer matching stays inside the question's finite choice set. A new food
   // request is not coerced into a size or spice answer.
   const yesnoAnswer=constrainedAnswer(text,"yesno",["yes","no"]),yesno=yesnoAnswer.value;
@@ -316,7 +360,7 @@ function runTurnCore(state: DialogState, rawText: string, providedAnalysis?: Rec
       const choices=kind==="size"?["half","full"]:s.spiceClarification?["Spicy","Extra Spicy"]:spiceOptions;
       const answer=constrainedAnswer(text,kind,choices);
       if(answer.confirm){s.answerConfirmation={kind,value:answer.confirm};return reply(`Did you mean ${answer.confirm}?`);}
-      if(answer.value){text=answer.value;providedAnalysis=undefined;}
+      if(answer.value){text=answer.value;providedAnalysis={matches:[],issues:[]};}
       else if(kind==="spice"&&/^(?:spies|spice|spices|price)[.!]?$/i.test(text))return reply(pendingQuestion(s)!);
     }
   }
@@ -331,6 +375,7 @@ function runTurnCore(state: DialogState, rawText: string, providedAnalysis?: Rec
   const correction=correctionOperationsTurn(s,text);
   if(correction)return correction;
   const analysis = decorateAnalysis(text,providedAnalysis ?? analyzeUtterance(text));
+  if(analysis.matches.length&&!done){s.checkoutRequested=false;if(s.phase==="ask_spice"||s.phase==="ask_name")s.phase="open";}
   // Unsupported Half/Full choices require consent; large/regular on one-size
   // items are acknowledged by the final response without inventing a size.
   for (const match of analysis.matches.slice()) if (match.portion && !getItem(match.itemId)!.size) {
@@ -405,7 +450,7 @@ function runTurnCore(state: DialogState, rawText: string, providedAnalysis?: Rec
   }
   if (spice && !matches.length && !/\b(?:how|what|is it|description)\b/i.test(text)) {
     applyOrderSpice(s, spice);
-    return reply(`I'll use ${spice} for dishes needing spice, with your individual changes kept. ${modifierQuestion(s) ?? "Anything else?"}`);
+    return reply(`${spice} for the order. ${modifierQuestion(s) ?? "Anything else?"}`);
   }
   if (s.phase === "ask_name") {
     const name = text.replace(/^(?:my name is|this is|it'?s|i am|i'm)\s+/i, "").replace(/[^a-zA-Z\s'-]/g, "").trim();
@@ -454,9 +499,9 @@ function runTurnCore(state: DialogState, rawText: string, providedAnalysis?: Rec
   if (matches.length) {
     const processed = processMatches(s, matches);
     if (processed.ask) return reply(`${quantityReadback(matches)}${processed.ask}`, matches);
-    if (!DONE.test(text)) return reply(`Noted: ${processed.added.join(" and ")}. Subtotal ${money(cartTotalCents(s.cart))}. Anything else?`, matches);
+    if (!done) return reply(`Added ${processed.added.join(" and ")}. Anything else?`, matches);
   }
-  if (DONE.test(text)) {
+  if (done) {
     const question = modifierQuestion(s);
     if (question) return reply(question);
     if (s.needsReview) return reply("This request needs staff review. What callback number should the team use?");
@@ -480,7 +525,7 @@ export function runTurn(state:DialogState,text:string,analysis?:RecognitionAnaly
   const total=(cart:CartLine[],id:string)=>cart.filter(line=>key(line)===id).reduce((sum,line)=>sum+line.qty,0);
   const addedLines=result.operations!.filter(operation=>operation.action==="add").map(operation=>operation.after!);
   const added=addedLines.map(line=>`${line.qty} ${line.name}${line.size?`, ${line.size}`:""}${line.spiceLevel?`, ${line.spiceLevel}`:""}`);
-  const removal=isRemovalCommand(text)||state.pendingCorrection?.segment.action==="remove";
+  const removal=isRemovalCommand(text)||state.pendingCorrection?.segment.action==="remove"||!!state.removalConfirmation;
   if(removal){
     const removed=[...new Set(state.cart.map(key))].flatMap(id=>{const qty=total(state.cart,id)-total(result.state.cart,id),line=state.cart.find(line=>key(line)===id)!;return qty>0?[`${qty} ${line.name}${line.size?`, ${line.size}`:""}`]:[];});
     if(removed.length)result.reply=`Removed ${removed.join(" and ")}. ${pendingQuestion(result.state)??"Anything else?"}`;
@@ -490,7 +535,7 @@ export function runTurn(state:DialogState,text:string,analysis?:RecognitionAnaly
   result.state.recoveryMisses=miss?(state.recoveryMisses??0)+1:0;
   if(result.state.recoveryMisses>=2&&!result.reply.includes("Menu categories:"))result.reply=`Menu categories: ${[...new Set(MENU.map(item=>item.category))].join(", ")}. ${pendingQuestion(result.state)??"Which category would you like?"}`;
   if(added.length&&!addedLines.every(line=>result.reply.includes(`${line.qty} ${line.name}`)))result.reply=`Added ${added.join(" and ")}. ${result.reply}`;
-  else if(!added.length&&(/\?/.test(result.reply)||/isn't on|don't have|not on/i.test(result.reply)))result.reply=`No items added. ${result.reply}`;
+  else if(!added.length&&(!!result.state.recognition||/isn't on|don't have|not on|ambiguous/i.test(result.reply)))result.reply=`No items added. ${result.reply}`;
   if(result.reply===state.lastReply)result.reply=`Let me clarify. ${result.reply}`;
   result.state.lastReply=result.reply;
   return result;

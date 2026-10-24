@@ -1,16 +1,15 @@
 // Fresh DEVELOPMENT scenarios. Labels authored from menu-source.json and intent,
 // before running this suite; never generated from parser/matcher predictions.
 // No held-out fixture or grader is imported here. Repeated runs are development.
-import { readFileSync } from "node:fs";
-const source=JSON.parse(readFileSync("lib/menu-source.json","utf8"));
 export const line=(itemId,qty=1,size=null,spice=null)=>({itemId,qty,size,spice});
 const L=line, M="Medium Spice";
 const garlic="GARLIC_NAAN_BREAD",plain="PLAIN_NAAN_BREAD",rice="RICE",roti="ROTI",mango="MANGO_LASSI";
-// Required order-spice question follows source flags, including Rice/Roti.
-// This corrects a documented initial annotation error; not parser predictions.
-const required=(cart,ask)=>ask??(cart.some(line=>!line.spice&&source.items.find(item=>item.id===line.itemId)?.spice)?"spice":null);
-const c=(id,seed,text,actions,cart,ask=null,kind="match")=>({id:`correction-${String(id).padStart(2,"0")}`,group:"corrections",seed,text,actions,cart,ask:required(cart,ask),kind});
-const n=(id,text,cart,ask=null,kind="match",extra={})=>({id:`speech-${String(id).padStart(2,"0")}`,group:"speech",seed:[],text,cart,ask:required(cart,ask),kind,...extra});
+// Live-mic policy: ask whole-order spice only after checkout, not during
+// collection. Explicit ambiguous "hot" still needs immediate clarification.
+// Labels changed from the user's new policy, never from matcher predictions.
+const required=(ask,text)=>ask==="spice"&&!/\bhot\b/i.test(text)?null:ask;
+const c=(id,seed,text,actions,cart,ask=null,kind="match")=>({id:`correction-${String(id).padStart(2,"0")}`,group:"corrections",seed,text,actions,cart,ask:required(ask,text),kind});
+const n=(id,text,cart,ask=null,kind="match",extra={})=>({id:`speech-${String(id).padStart(2,"0")}`,group:"speech",seed:[],text,cart,ask:required(ask,text),kind,...extra});
 export const CORRECTION_DEV_CASES=[
  c(1,["garlic naan medium spice"],"um actually three",["replace"],[L(garlic,3,null,M)]),
  c(2,["rice"],"uh make that four",["replace"],[L(rice,4)]),

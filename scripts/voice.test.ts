@@ -56,7 +56,7 @@ test("Aura HTTP requests opt-out and streams complete PCM samples across byte bo
 test("capture worklet outputs 16 kHz 80 ms PCM frames and detects speech without recording",()=>{
  let Capture:any;const messages:any[]=[];const sandbox={AudioWorkletProcessor:class{port={postMessage:(message:any)=>messages.push(message)};},sampleRate:48000,registerProcessor:(_name:string,type:any)=>Capture=type,Int16Array,Math};
  vm.runInNewContext(readFileSync("public/voice-capture.js","utf8"),sandbox);
- const capture=new Capture();for(let i=0;i<240;i++)capture.process([[new Float32Array(128).fill(i<100?.2:0)]]);
+ const capture=new Capture();for(let i=0;i<240;i++)capture.process([[new Float32Array(128).fill(i<150?.2:0)]]);
  const frames=messages.filter(row=>row.type==="pcm");assert.equal(frames.length,8);assert.ok(frames.every(row=>row.pcm.byteLength===2560));assert.equal(messages.filter(row=>row.type==="speech_start").length,1);assert.equal(messages.filter(row=>row.type==="speech_end").length,1);
 });
 test("pronunciation sheet covers all 84 current IDs and seven modifiers",()=>{

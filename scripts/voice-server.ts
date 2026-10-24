@@ -17,6 +17,7 @@ import { TurnRecorder } from "../voice/turn-recorder";
 import type { SttModel, SttStream } from "../voice/contracts";
 import { demoAccessCode } from "../voice/access";
 import { voiceErrorMessage } from "../voice/connection-status";
+import { qualifiedBargeIn } from "../voice/barge-in";
 
 async function main() {
 const bootStarted=performance.now();
@@ -97,8 +98,9 @@ wss.on("connection", ws => {
     if(message.type==="latency"){
       recorder.latency(Number(message.generation),message.timing);return;
     }
+    if(message.type==="playback"){recorder.playback(Number(message.generation),message.metrics);return;}
     if (message.type === "stop") { stop(); ws.close(); return; }
-    if (message.type === "barge_in") { session?.interrupt(); return; }
+    if (message.type === "barge_in") { if(qualifiedBargeIn(message)){if(message.source==="browser_vad")guard?.confirmedSpeech();session?.interrupt({source:message.source,energy:message.energy,threshold:message.threshold,speechMs:message.speechMs});}return; }
     if (message.type === "mic_ready" && active) { void session?.greet(); return; }
     if (message.type !== "start" || active || starting) return;
     if(accessCode){const entered=Buffer.from(typeof message.accessCode==="string"?message.accessCode:"");const expected=Buffer.from(accessCode);if(entered.length!==expected.length||!timingSafeEqual(entered,expected)){emit({type:"error",code:"access_denied",message:"Enter the private demo access code."});ws.close(1008,"Access denied");return;}}
@@ -115,9 +117,11 @@ wss.on("connection", ws => {
       const wait=process.env.VOICE_ENDPOINT_MODE==="fixed"?1600:adaptive;
       const profile = endpointSettings(model,process.env.VOICE_ENDPOINT_PROFILE||"baseline");
       meta.model=model;meta.profile=`${profile.id}+${typeof wait==="number"?"fixed1600":`adaptive${completeMs}`}`;
-      guard = new ContinuationGuard(wait,event=>void session?.turn(event.text,event.audioEndSeconds,event.endpointReason));
+      guard = new ContinuationGuard(wait,event=>void session?.turn(event.text,event.audioEndSeconds,event.endpointReason,event.continuationOf?{of:event.continuationOf,fragment:event.fragment??""}:undefined),{windowMs:2200,onResume:()=>session?.interrupt({source:"continuation"})});
       stt = await openStt(model, event => {
-        if (event.type === "speech") session?.interrupt();
+        // Provider VAD alone cannot distinguish the agent's echo from a caller.
+        // The browser's duration/energy/reference-qualified VAD owns barge-in.
+        if (event.type === "speech") { /* diagnostic only; no blind cancellation */ }
         else if (event.type === "final") { guard?.final(event); }
         else if (event.type === "partial"||event.type==="configuration") { emit(event); }
         else { emit(event); stop(); ws.close(1011, "STT failed"); }

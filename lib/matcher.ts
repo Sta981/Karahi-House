@@ -1,5 +1,5 @@
 import { MENU, MenuItem } from "./menu";
-import { similarity, preparePhonetic, preparedSimilarity, similarityUpperBound, PreparedPhonetic } from "./phonetic";
+import { similarity, preparePhonetic, preparedSimilarity, similarityUpperBound, similarityAtLeast, PreparedPhonetic } from "./phonetic";
 import POLICY from "./recognition-policy.json";
 import { speechTokens, exactFullNameIds } from "./speech";
 
@@ -48,7 +48,7 @@ const RETRIEVAL_LABELS = new Map(MENU.map(item => [item,
 
 const STOPWORDS = new Set([
   "a", "an", "the", "some", "of", "please", "plz", "and", "with", "for", "me",
-  "i", "want", "would", "like", "get", "have", "can", "you", "give", "also",
+  "i", "want", "need", "take", "would", "like", "get", "have", "can", "you", "give", "also",
   "add", "order", "one", "just", "to", "my", "us", "we", "that", "thats",
   "this", "these", "those", "it", "its", "all", "everything", "something",
   "anything", "else", "is", "was", "be",
@@ -114,7 +114,7 @@ function sttQuantityBefore(tokens: string[], start: number, used: boolean[] = []
   const heard = tokens[start - 1];
   if (!Object.hasOwn(STT_NUMBERS, heard) || used[start - 1]) return;
   const before = tokens[start - 2];
-  if (heard === "to" && ["like","want","wants","wanted","going","go","come","came","need","plan","talk","speak","listen","welcome","sent","send","deliver","next"].includes(before)) return;
+  if (heard === "to" && ["going","go","come","came","plan","talk","speak","listen","welcome","sent","send","deliver","next"].includes(before)) return;
   if (heard === "for" && ["waiting","wait","looking","look","thanks","thank","here","ready","pay","paid","payment","asking","ask","come","came","call","calling","sorry"].includes(before)) return;
   if (["ate","won"].includes(heard) && ["i","we","you","he","she","they","already","just","have","had"].includes(before)) return;
   return { qty: STT_NUMBERS[heard], heard };
@@ -177,6 +177,18 @@ for (const item of MENU) {
 const VOCAB_BY_LENGTH = new Map(Array.from({length: 7}, (_, index) => [index + 1,
   VOCAB.filter(entry => Math.abs(entry.tokenCount - (index + 1)) <= 1)]));
 const MULTIWORD_STARTS = new Set(VOCAB.filter(entry => entry.tokenCount > 1).map(entry => entry.tokens[0]));
+// Keys contain lengths only; values contain immutable menu entries, no caller text.
+const LENGTH_COHORTS=new Map<string,VocabEntry[]>();
+function vocabularyCohort(length:number,query:PreparedPhonetic):VocabEntry[]{
+ const key=`${length}:${query.code.length}:${query.normalized.length}`;let entries=LENGTH_COHORTS.get(key);if(entries)return entries;
+ entries=(VOCAB_BY_LENGTH.get(length)??[]).filter(entry=>{
+  const pmax=Math.max(query.code.length,entry.prepared.code.length),rmax=Math.max(query.normalized.length,entry.prepared.normalized.length);
+  const upper=(pmax ? .72*(1-Math.abs(query.code.length-entry.prepared.code.length)/pmax) : 0)+(rmax ? .28*(1-Math.abs(query.normalized.length-entry.prepared.normalized.length)/rmax) : 0);
+  const threshold=Math.max(entry.tokenCount===length ? (length===1 ? .8 : .76) : .78,query.code.length<3 ? .9 : 0);
+  return upper+1e-12>=threshold;
+ });
+ if(LENGTH_COHORTS.size>=2048)LENGTH_COHORTS.clear();LENGTH_COHORTS.set(key,entries);return entries;
+}
 
 // Single generic words that must never match an item on their own;
 // they are disambiguated by the dialog layer instead.
@@ -222,7 +234,7 @@ export function matchUtterance(text: string): Match[] {
       const boundaries = rawWindow.filter(token => BOUNDARY.has(token));
       const numberSlots = windowTokens.flatMap((token,index) => token in NUM_WORDS || /^\d+$/.test(token) ? [{token,index}] : []);
 
-      for (const entry of VOCAB_BY_LENGTH.get(effLen) ?? []) {
+      for (const entry of vocabularyCohort(effLen,prepared)) {
         // A quantity cannot be absorbed into an adjacent dish's longer span.
         // Numbers that are actually in a dish alias (Chicken 65, platter for 4)
         // remain matchable, at their explicit position in that alias.
@@ -238,7 +250,7 @@ export function matchUtterance(text: string): Match[] {
         let threshold = entry.tokenCount === effLen ? (effLen === 1 ? 0.8 : 0.76) : 0.78;
         if (codeLen < 3) threshold = Math.max(threshold, 0.9);
         if (similarityUpperBound(prepared, entry.prepared) < threshold) continue;
-        const s = preparedSimilarity(prepared, entry.prepared);
+        const s = similarityAtLeast(prepared, entry.prepared,threshold);
         if (s >= threshold) {
           candidates.push({
             itemId: entry.itemId,
@@ -371,11 +383,40 @@ export interface RecognitionAnalysis {
   issues: RecognitionIssue[];
 }
 
+const STYLE_RULES=[
+  {words:["lahori"],label:"lahori"},{words:["shinwari"],label:"shinwari"},{words:["shinvari"],label:"shinwari"},
+  {words:["white"],label:"white"},{words:["black","pepper"],label:"black pepper"},{words:["kali","mirch"],label:"black pepper"},{words:["keema"],label:"keema"},
+].map(rule=>({...rule,items:MENU.filter(item=>item.name.toLowerCase().includes(rule.label)&&(/karahi/i.test(item.name)||rule.label==="keema"&&/naan/i.test(item.name)))}));
+export function candidateQuestion(candidates:Match[]):string{
+  const items=candidates.map(candidate=>MENU_BY_ID.get(candidate.itemId)!);
+  if(items.length===1)return `Did you mean ${items[0].name}?`;
+  const proteins=["Chicken","Lamb","Goat","Beef","Fish","Shrimp","Paneer"].filter(protein=>items.some(item=>item.protein===protein));
+  if(proteins.length>1&&items.every(item=>item.protein))return `${proteins.slice(0,-1).join(", ")} or ${proteins.at(-1)}?`;
+  if(items.some(item=>/keema naan/i.test(item.name))&&items.some(item=>/keema karahi/i.test(item.name)))return "Keema Karahi or Keema Naan?";
+  return "Which style or protein would you like?";
+}
+function shortFamily(tokens:string[]):RecognitionAnalysis|undefined{
+  const rule=STYLE_RULES.find(rule=>rule.words.every(word=>tokens.includes(word)));
+  if(!rule)return;
+  const allowed=new Set([...rule.words,"karahi","kadai","kadhai","kadahi",...Object.keys(PROTEIN_WORDS),...Object.keys(PORTION_WORDS)]);
+  if(tokens.some(token=>!allowed.has(token)&&!STOPWORDS.has(token)&&!(token in NUM_WORDS)&&!(token in STT_NUMBERS)&&!/^\d+$/.test(token)))return;
+  const protein=extractVariantHints(tokens.join(" ")).protein;
+  const items=rule.items.filter(item=>(!protein||item.protein===protein)&&(!tokens.some(token=>/^(?:karahi|kadai|kadhai|kadahi)$/.test(token))||/karahi/i.test(item.name)));
+  if(!items.length)return;
+  const food=tokens.filter(token=>!STOPWORDS.has(token)&&!(token in NUM_WORDS)&&!(token in PORTION_WORDS)&&!(token in STT_NUMBERS)&&!/^\d+$/.test(token)).join(" ");
+  if(exactFullNameIds(food).length===1)return;
+  const start=Math.max(0,tokens.findIndex(token=>allowed.has(token))),end=tokens.length;
+  const repaired=sttQuantityBefore(tokens,start),qty=repaired?.qty??quantityBefore(tokens,start)??1,hints=extractVariantHints(tokens.join(" "));
+  const candidates:Match[]=items.map(item=>({itemId:item.id,name:item.name,qty,protein:item.protein,...hints,heard:tokens.join(" "),start,end,score:0,quantityExplicit:qty!==1||quantityBefore(tokens,start)!==undefined,...(repaired?{quantityHeard:repaired.heard}:{})}));
+  return {matches:[],issues:[{kind:"clarify",reason:"ambiguous",heard:tokens.join(" "),start:0,end,candidates,question:candidateQuestion(candidates)}]};
+}
+
 // Candidate retrieval and permission to add an item are separate decisions.
 // Unknown-food coverage is deliberately finite; an unrecognized request must
 // still fall back to asking the caller, never inventing a menu entry.
 export function analyzeUtterance(text: string): RecognitionAnalysis {
   const tokens = tokenize(text);
+  const family=shortFamily(tokens);if(family)return family;
   const joined = tokens.join(" ");
   const matches = matchUtterance(text);
   const issues: RecognitionIssue[] = [];
@@ -410,7 +451,7 @@ export function analyzeUtterance(text: string): RecognitionAnalysis {
       };
     });
     issues.push({ kind, reason, heard: tokens.slice(start, end).join(" "), start, end, candidates,
-      question: `${quantityHeard ? `I heard quantity ${quantity}. ` : ""}${question}` });
+      question });
   }
 
   function find(pattern: RegExp, apply: (start: number, end: number) => void) {
@@ -523,7 +564,7 @@ export function analyzeUtterance(text: string): RecognitionAnalysis {
       const choices = match.alternatives?.map((candidate) => ({ ...match, ...candidate,
         name: MENU_BY_ID.get(candidate.itemId)!.name, alternatives: undefined })) ?? [match];
       const repair = /\bkirby\b/i.test(match.heard);
-      const question = `${match.quantityHeard ? `I heard quantity ${match.qty}. ` : ""}${repair ? "Did you mean chicken Karahi?" : `Did you mean ${choices.map((choice) => choice.name).join(" or ")}?`}`;
+      const question = repair ? "Did you mean chicken Karahi?" : `Did you mean ${choices.map((choice) => choice.name).join(" or ")}?`;
       issues.push({ kind: "clarify", reason: match.distinctiveToken ? "distinctive_token" : match.alternatives ? "low_margin" : repair ? "stt_repair" : "low_confidence",
         heard: match.heard, start: match.start, end: match.end, candidates: choices, question });
     }

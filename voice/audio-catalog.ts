@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
-import { GREETING } from "../lib/dialog";
+import { GREETING,ORDER_SPICE_QUESTION } from "../lib/dialog";
 import { MENU,MODIFIERS,MENU_SOURCE_SHA256 } from "../lib/menu";
 import { auraPronunciation } from "./pronunciation.mjs";
 export const FIXED_PHRASES=[
- {id:"greeting",text:GREETING},{id:"spice",text:`What spice level for the whole order: ${MODIFIERS.spice_level.options.join(", ")}? You can change individual dishes.`},
+ {id:"greeting",text:GREETING},{id:"spice",text:ORDER_SPICE_QUESTION},
  {id:"hot",text:'By "hot", do you mean Spicy or Extra Spicy?'},{id:"size",text:"Half or Full for "},
  {id:"anything_else",text:"Anything else?"},{id:"readback",text:"Please check: "},
  {id:"unavailable",text:"That dish isn't on this menu. Would you like "},{id:"unavailable_alternate",text:"I don't have that dish on this menu. Would you like "},

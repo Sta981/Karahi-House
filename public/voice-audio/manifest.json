@@ -1,22 +1,22 @@
 {
   "kind": "fixed-synthetic-menu-templates-only",
-  "identity": "bd3161e95803c4ca848ea6c0aecc69a3c1819f0f5a8dfcc6287769a746bcaf68",
+  "identity": "25fc65b8bbe25ba0eed58a1ae8a1a9ab9384d01703c115695c0f2201559afdf0",
   "voice": "aura-2-thalia-en:linear16:24000:v2",
   "sampleRate": 24000,
   "entries": [
     {
       "id": "greeting",
-      "text": "Welcome to the Karahi House demo. The menu is approved by the restaurant. What can I get for you?",
-      "file": "36deaefd36eb8460a5e05dd56608dfc0e76da50401343f4c606740c3176d1b5b.pcm",
-      "bytes": 257280,
-      "sha256": "3c921b4374597baa74ddd2a31964f3b5cc19f161f30ff12b663cb0d58ca14fda"
+      "text": "Thanks for calling Karahi House. What would you like?",
+      "file": "579597ac9528cdd44eca008c11e435c8ca0c3dddbfcc4aadc0e754ac165b4098.pcm",
+      "bytes": 142080,
+      "sha256": "0d382997ec272cf77180d9ea88967f70e207c79ed11eb781bc918591b71efac8"
     },
     {
       "id": "spice",
-      "text": "What spice level for the whole order: Extra Spicy, Spicy, Medium Spice, Mild Spice, No Spice? You can change individual dishes.",
-      "file": "80c3864733b2c0d8a65d13db734b2260dc62f9a1dda578a0ebc224f608aa4720.pcm",
-      "bytes": 510720,
-      "sha256": "e755daf384e52297d9ae893d4b481992d2cfb444b5e859de16f0208854b313aa"
+      "text": "Spice for the order: Extra Spicy, Spicy, Medium Spice, Mild Spice, No Spice?",
+      "file": "060c87bf7b5bda3dd6847080ba73366c3622b4f97bfef1eb6486aaf2dbc9d228.pcm",
+      "bytes": 345600,
+      "sha256": "6325097bec4e427f65cb17be923449964169bc37f83ada5bcac902d9442455a4"
     },
     {
       "id": "hot",

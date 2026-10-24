@@ -31,7 +31,7 @@ async function main() {
     const session=new VoiceSession(fixture,emit);let loud=0,quiet=0,speaking=false;
     ws.on("message",(data,binary)=>{
       if(binary){const pcm=Buffer.from(data as Buffer);let sum=0;for(let i=0;i<pcm.length;i+=2)sum+=(pcm.readInt16LE(i)/32768)**2;
-        if(Math.sqrt(sum/(pcm.length/2))>.025){loud++;quiet=0;if(loud===2){speaking=true;session.interrupt();}}
+        if(Math.sqrt(sum/(pcm.length/2))>.025){loud++;quiet=0;if(loud===4)speaking=true;}
         else{quiet++;loud=0;if(speaking&&quiet===4){speaking=false;turns++;void session.turn(turns===1?"one rice":turns===2?"one mango lassi":"two papadam",turns);}}return;}
       const msg=JSON.parse(data.toString());
       if(msg.type==="ping")emit({type:"pong",sent:msg.sent,server:performance.now()});
@@ -39,7 +39,8 @@ async function main() {
       if(msg.type==="fixture_close"){emit({type:"error",code:"stt_audio_timeout"});ws.close(1011,"STT failed");}
       if(msg.type==="start")emit({type:"ready",model:msg.model,tts:"fixture",sampleRate:16000,frameMs:80,keyterms:KEYTERMS.length});
       if(msg.type==="mic_ready")void session.greet();
-      if(msg.type==="barge_in"){bargeIns++;session.interrupt();}
+      if(msg.type==="barge_in"){bargeIns++;session.interrupt({source:msg.source,energy:msg.energy,threshold:msg.threshold,speechMs:msg.speechMs});}
+      if(msg.type==="playback")recorder.playback(msg.generation,msg.metrics);
       if(msg.type==="latency")recorder.latency(msg.generation,msg.timing);
       if(msg.type==="stop")ws.close();
     });ws.on("close",()=>session.close());
@@ -50,14 +51,14 @@ async function main() {
     const context=await browser.newContext();const page=await context.newPage();
     const failures:string[]=[];page.on("pageerror",error=>failures.push(error.message));
     await page.addInitScript(()=>{
-      const state:any={contexts:[],stops:0,tracks:[],sockets:[],micGranted:false,socketBeforeMic:false};(window as any).__voiceFixture=state;
+      const state:any={contexts:[],stops:0,tracks:[],sockets:[],playback:[],micGranted:false,socketBeforeMic:false};(window as any).__voiceFixture=state;
       const Socket=window.WebSocket;
-      window.WebSocket=new Proxy(Socket,{construct(Target,args){if(String(args[0]).includes("/ws/voice")){state.socketBeforeMic=!state.micGranted;const socket=new Target(...args as [string]);state.sockets.push(socket);return socket;}return new Target(...args as [string]);}});
+      window.WebSocket=new Proxy(Socket,{construct(Target,args){if(String(args[0]).includes("/ws/voice")){state.socketBeforeMic=!state.micGranted;const socket=new Target(...args as [string]),send=socket.send.bind(socket);socket.send=function(data){if(typeof data==="string"){const message=JSON.parse(data);if(message.type==="playback")state.playback.push(message);}return send(data);};state.sockets.push(socket);return socket;}return new Target(...args as [string]);}});
       const original=AudioBufferSourceNode.prototype.stop;
       AudioBufferSourceNode.prototype.stop=function(...args:any[]){state.stops++;return original.apply(this,args as [number?]);};
       navigator.mediaDevices.getUserMedia=async()=>{
         const audio=new AudioContext();state.contexts.push(audio);const dest=audio.createMediaStreamDestination();
-        const oscillator=audio.createOscillator(),gain=audio.createGain();gain.gain.value=0;oscillator.connect(gain);gain.connect(dest);oscillator.start();await audio.resume();
+        const oscillator=audio.createOscillator(),gain=audio.createGain();oscillator.frequency.value=733;gain.gain.value=0;oscillator.connect(gain);gain.connect(dest);oscillator.start();await audio.resume();
         state.speak=async()=>{gain.gain.setValueAtTime(.2,audio.currentTime);await new Promise(resolve=>setTimeout(resolve,500));gain.gain.setValueAtTime(0,audio.currentTime);};
         await new Promise(resolve=>setTimeout(resolve,350));state.micGranted=true;state.tracks.push(...dest.stream.getTracks());return dest.stream;
       };
@@ -82,6 +83,13 @@ async function main() {
     await page.getByRole("status").filter({hasText:"Voice output failed"}).waitFor();assert.equal(await page.getByRole("button",{name:"Start microphone"}).isDisabled(),true);
     assert.equal(await page.evaluate(()=>(window as any).__voiceFixture.tracks.every((track:MediaStreamTrack)=>track.readyState==="live")),true);report.synthesisFailureKeepsMic=true;
     await page.evaluate(()=>(window as any).__voiceFixture.speak());await page.waitForFunction(()=>document.body.innerText.includes("2 × Papadam"),{},{timeout:15000});report.nextTurnAfterSynthesisFailure=true;
+    await page.waitForFunction(()=>(window as any).__voiceFixture.playback.some((row:any)=>row.metrics.finished),{},{timeout:15000});
+    const playback=await page.evaluate(()=>(window as any).__voiceFixture.playback);
+    const latest=new Map<number,any>();for(const row of playback)latest.set(row.generation,row.metrics);
+    report.playback=[...latest].map(([generation,metrics])=>({generation,...metrics}));
+    assert.ok(report.playback.some((row:any)=>row.finished),"Last browser playback source must finish naturally");
+    assert.ok(report.playback.some((row:any)=>row.interruptedByBargeIn&&row.trigger?.source==="browser_vad"&&row.trigger?.speechMs>=320));
+    assert.match(csv,/playback_finished/);assert.match(csv,/engine_profile/);
     await page.evaluate(()=>(window as any).__voiceFixture.sockets[0].send(JSON.stringify({type:"fixture_close"})));
     await page.getByRole("status").filter({hasText:"stopped receiving microphone audio"}).waitFor();assert.equal(await page.getByRole("button",{name:"Start microphone"}).isEnabled(),true);report.disconnectReasonPreserved=true;
     const released=await page.evaluate(()=>(window as any).__voiceFixture.tracks.every((track:MediaStreamTrack)=>track.readyState==="ended"));assert.equal(released,true);assert.deepEqual(failures,[]);

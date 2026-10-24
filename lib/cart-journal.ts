@@ -26,3 +26,14 @@ export function replayCartOperations(initial:CartLine[],operations:CartOperation
   }
   return cart;
 }
+export function rollbackCartOperations(current:CartLine[],operations:CartOperation[]):CartLine[]{
+  const inverse=operations.toReversed().map((operation):CartOperation=>operation.action==="add"?{action:"remove",index:operation.index,before:operation.after}:operation.action==="remove"?{action:"add",index:operation.index,after:operation.before}:{action:"replace",index:operation.index,before:operation.after,after:operation.before});
+  // Inverse removals can restore a line in the middle, unlike a normal append.
+  let cart=clone(current);
+  for(const operation of inverse){
+    if(operation.action==="add"){
+      if(!operation.after||operation.index>cart.length)throw Error("Invalid rollback insertion");cart.splice(operation.index,0,clone(operation.after));
+    }else cart=replayCartOperations(cart,[operation]);
+  }
+  return cart;
+}

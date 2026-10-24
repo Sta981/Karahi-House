@@ -22,14 +22,14 @@ test("notes cannot exempt an unresolved food compound from the safety boundary",
  assert.equal(call("one rice on the side").state.cart.length,1);
 });
 test("removal uses the current cart, tolerates noise and reads removed quantity",()=>{
- const result=call("one mango lassi and three garlic naan mild spice","remove the garlic now please");
+ const result=call("one mango lassi and three garlic naan mild spice","remove the garlic now please","yes");
  assert.deepEqual(result.state.cart.map(line=>line.itemId),["MANGO_LASSI"]);assert.match(result.reply,/Removed 3 Garlic Naan/);
 });
 test("tied removal names enumerate cart lines; a later partial answer removes only its target",()=>{
  let result=call("two garlic naan and one plain naan mild spice","remove naan");
  assert.equal(result.state.cart.length,2);assert.match(result.reply,/You have.*Garlic Naan.*Plain Naan/);
- result=runTurn(result.state,"garlic please");assert.equal(result.state.cart.length,1);assert.match(result.reply,/Removed 2 Garlic Naan/);
- const uncertain=call("one garlic naan mild spice and one mango lassi","remove the garlic coconut dish");assert.equal(uncertain.state.cart.length,2);assert.ok(uncertain.state.pendingCorrection);assert.match(uncertain.reply,/You have/);
+ result=runTurn(result.state,"garlic please");assert.ok(result.state.removalConfirmation);result=runTurn(result.state,"yes");assert.equal(result.state.cart.length,1);assert.match(result.reply,/Removed 2 Garlic Naan/);
+ const uncertain=call("one garlic naan mild spice and one mango lassi","remove the garlic coconut dish");assert.equal(uncertain.state.cart.length,2);assert.ok(uncertain.state.pendingCorrection);assert.doesNotMatch(uncertain.reply,/You have/);
 });
 test("pending size accepts constrained STT answers; those words do not create dishes",()=>{
  for(const [heard,size]of [["haf please","Half"],["fool please","Full"],["have","Half"]]){
@@ -47,7 +47,7 @@ test("price and subtotal questions preserve pending size and recognition",()=>{
  const clarification=call("one gulab","how much does it cost");assert.ok(clarification.state.recognition);assert.match(clarification.reply,/Gulab Jamun.*\$/);
 });
 test("pending spice and yes/no are constrained without globally repairing food words",()=>{
- let result=call("one chicken biryani","spicey");assert.equal(result.state.cart[0]?.spiceLevel,"Spicy");
+ let result=call("one chicken biryani","checkout","spicey");assert.equal(result.state.cart[0]?.spiceLevel,"Spicy");
  result=call("one gulab","yeas");assert.equal(result.state.cart[0]?.itemId,"GULAB_JAMUN");
  result=call("one mango lassi","checkout","Test Customer","yess");assert.equal(result.state.phase,"confirm");assert.equal(result.state.answerConfirmation?.kind,"yesno");assert.match(result.reply,/Did you mean yes/);assert.equal(result.state.cart.length,1);
  assert.equal(call("fool").state.cart.length,0);
