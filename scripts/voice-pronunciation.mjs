@@ -1,0 +1,10 @@
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { auditionHint } from "../voice/pronunciation.mjs";
+const source = JSON.parse(readFileSync("lib/menu-source.json", "utf8"));
+const rows = source.items.map(item => ({ id: item.id, name: item.name, hint: auditionHint(item.name), phrase: `One ${item.name}.`, status: "not auditioned by a native speaker" }));
+for (const name of [...source.modifiers.size.options,...source.modifiers.spice_level.options]) rows.push({id:`MODIFIER_${name.toUpperCase().replaceAll(" ","_")}`,name,hint:name,phrase:`${name}.`,status:"not auditioned by a native speaker"});
+if (source.items.length !== 84 || rows.length !== 91 || new Set(rows.map(row=>row.id)).size !== 91) throw Error("Pronunciation sheet coverage mismatch");
+mkdirSync("docs",{recursive:true});
+writeFileSync("docs/pronunciation-sheet.json",JSON.stringify({source:"lib/menu-source.json",items:84,modifiers:7,entries:rows},null,2)+"\n");
+writeFileSync("docs/pronunciation-sheet.md",`# Pronunciation listening sheet\n\n84 final-menu items + Half, Full and five spice levels. These hints are draft English-phone approximations; no native-speaker audio approval is claimed. No recordings are saved.\n\nListen to each phrase in Kokoro and Aura-2; mark Pass, Needs adjustment or Unclear, and ask a Pakistani/Indian speaker to confirm. Listen particularly for karahi, seekh, nihari and dessert names. Also check numbers/prices in complete read-backs.\n\n| ID | Exact name | Draft guide | Listening phrase | Kokoro | Aura-2 | Reviewer |\n|---|---|---|---|---|---|---|\n${rows.map(row=>`| ${row.id} | ${row.name} | ${row.hint} | ${row.phrase} | pending | pending | pending |`).join("\n")}\n`);
+console.log(`Pronunciation coverage: ${source.items.length} items + 7 modifiers = ${rows.length}; audio reviews pending.`);

@@ -1,0 +1,644 @@
+{
+  "source": "lib/menu-source.json",
+  "items": 84,
+  "modifiers": 7,
+  "entries": [
+    {
+      "id": "GOAT_LAHORI_KARAHI",
+      "name": "Goat Lahori Karahi",
+      "hint": "Goat luh-HOR-ee kuh-RAH-hee",
+      "phrase": "One Goat Lahori Karahi.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "LAMB_LAHORI_KARAHI",
+      "name": "Lamb Lahori Karahi",
+      "hint": "Lamb luh-HOR-ee kuh-RAH-hee",
+      "phrase": "One Lamb Lahori Karahi.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "CHICKEN_LAHORI_KARAHI",
+      "name": "Chicken Lahori Karahi",
+      "hint": "Chicken luh-HOR-ee kuh-RAH-hee",
+      "phrase": "One Chicken Lahori Karahi.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "FISH_KARAHI",
+      "name": "Fish Karahi",
+      "hint": "Fish kuh-RAH-hee",
+      "phrase": "One Fish Karahi.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "FISH_PAKORA",
+      "name": "Fish Pakora",
+      "hint": "Fish puh-KOR-uh",
+      "phrase": "One Fish Pakora.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "FISH_TANDOORI",
+      "name": "Fish Tandoori",
+      "hint": "Fish tun-DOOR-ee",
+      "phrase": "One Fish Tandoori.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "FISH_AND_CHIPS",
+      "name": "Fish & Chips",
+      "hint": "Fish & Chips",
+      "phrase": "One Fish & Chips.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "SHRIMP_KARAHI",
+      "name": "Shrimp Karahi",
+      "hint": "Shrimp kuh-RAH-hee",
+      "phrase": "One Shrimp Karahi.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "GOAT_WHITE_KARAHI",
+      "name": "Goat White Karahi",
+      "hint": "Goat White kuh-RAH-hee",
+      "phrase": "One Goat White Karahi.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "LAMB_WHITE_KARAHI",
+      "name": "Lamb White Karahi",
+      "hint": "Lamb White kuh-RAH-hee",
+      "phrase": "One Lamb White Karahi.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "CHICKEN_WHITE_KARAHI",
+      "name": "Chicken White Karahi",
+      "hint": "Chicken White kuh-RAH-hee",
+      "phrase": "One Chicken White Karahi.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "DESI_CHICKEN",
+      "name": "Desi Chicken",
+      "hint": "DAY-see Chicken",
+      "phrase": "One Desi Chicken.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "GOAT_KARAHI_BLACK_PEPPER",
+      "name": "Goat Karahi Black Pepper",
+      "hint": "Goat kuh-RAH-hee Black Pepper",
+      "phrase": "One Goat Karahi Black Pepper.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "LAMB_KARAHI_BLACK_PEPPER",
+      "name": "Lamb Karahi Black Pepper",
+      "hint": "Lamb kuh-RAH-hee Black Pepper",
+      "phrase": "One Lamb Karahi Black Pepper.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "CHICKEN_KARAHI_BLACK_PEPPER",
+      "name": "Chicken Karahi Black Pepper",
+      "hint": "Chicken kuh-RAH-hee Black Pepper",
+      "phrase": "One Chicken Karahi Black Pepper.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "GOAT_SHINWARI_KARAHI",
+      "name": "Goat Shinwari Karahi",
+      "hint": "Goat shin-WAH-ree kuh-RAH-hee",
+      "phrase": "One Goat Shinwari Karahi.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "LAMB_SHINWARI_KARAHI",
+      "name": "Lamb Shinwari Karahi",
+      "hint": "Lamb shin-WAH-ree kuh-RAH-hee",
+      "phrase": "One Lamb Shinwari Karahi.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "BEEF_SHINWARI_KARAHI",
+      "name": "Beef Shinwari Karahi",
+      "hint": "Beef shin-WAH-ree kuh-RAH-hee",
+      "phrase": "One Beef Shinwari Karahi.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "CHICKEN_SHINWARI_KARAHI",
+      "name": "Chicken Shinwari Karahi",
+      "hint": "Chicken shin-WAH-ree kuh-RAH-hee",
+      "phrase": "One Chicken Shinwari Karahi.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "CHICKEN_CHEESE_HANDI",
+      "name": "Chicken Cheese Handi",
+      "hint": "Chicken Cheese HAAN-dee",
+      "phrase": "One Chicken Cheese Handi.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "KORMA_CHICKEN",
+      "name": "Korma Chicken",
+      "hint": "KOR-muh Chicken",
+      "phrase": "One Korma Chicken.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "KORMA_GOAT",
+      "name": "Korma Goat",
+      "hint": "KOR-muh Goat",
+      "phrase": "One Korma Goat.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "KORMA_LAMB",
+      "name": "Korma Lamb",
+      "hint": "KOR-muh Lamb",
+      "phrase": "One Korma Lamb.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "BEEF_NIHARI",
+      "name": "Beef Nihari",
+      "hint": "Beef nih-HAA-ree",
+      "phrase": "One Beef Nihari.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "MALAI_BOTI",
+      "name": "Malai Boti",
+      "hint": "muh-LYE BOH-tee",
+      "phrase": "One Malai Boti.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "GREEN_BOTI",
+      "name": "Green Boti",
+      "hint": "Green BOH-tee",
+      "phrase": "One Green Boti.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "CHICKEN_BOTI",
+      "name": "Chicken Boti",
+      "hint": "Chicken BOH-tee",
+      "phrase": "One Chicken Boti.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "LAMB_BOTI",
+      "name": "Lamb Boti",
+      "hint": "Lamb BOH-tee",
+      "phrase": "One Lamb Boti.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "CHICKEN_SEEKH_KABAB",
+      "name": "Chicken Seekh Kabab",
+      "hint": "Chicken seekh kuh-BAAB",
+      "phrase": "One Chicken Seekh Kabab.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "LAMB_SEEKH_KABAB",
+      "name": "Lamb Seekh Kabab",
+      "hint": "Lamb seekh kuh-BAAB",
+      "phrase": "One Lamb Seekh Kabab.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "BEEF_SEEKH_KABAB",
+      "name": "Beef Seekh Kabab",
+      "hint": "Beef seekh kuh-BAAB",
+      "phrase": "One Beef Seekh Kabab.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "CHICKEN_LEG_OR_BREAST",
+      "name": "Chicken Leg or Breast",
+      "hint": "Chicken Leg or Breast",
+      "phrase": "One Chicken Leg or Breast.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "CHICKEN_65",
+      "name": "Chicken 65",
+      "hint": "Chicken 65",
+      "phrase": "One Chicken 65.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "CHICKEN_KEEMA_KARAHI",
+      "name": "Chicken Keema Karahi",
+      "hint": "Chicken KEE-muh kuh-RAH-hee",
+      "phrase": "One Chicken Keema Karahi.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "BEEF_KEEMA_KARAHI",
+      "name": "Beef Keema Karahi",
+      "hint": "Beef KEE-muh kuh-RAH-hee",
+      "phrase": "One Beef Keema Karahi.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "LAMB_KEEMA_KARAHI",
+      "name": "Lamb Keema Karahi",
+      "hint": "Lamb KEE-muh kuh-RAH-hee",
+      "phrase": "One Lamb Keema Karahi.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "BRAINS_KARAHI",
+      "name": "Brains Karahi",
+      "hint": "Brains kuh-RAH-hee",
+      "phrase": "One Brains Karahi.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "PLATTER_FOR_4_PEOPLE",
+      "name": "Platter for 4 People",
+      "hint": "Platter for 4 People",
+      "phrase": "One Platter for 4 People.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "PLATTER_FOR_6_PEOPLE",
+      "name": "Platter for 6 People",
+      "hint": "Platter for 6 People",
+      "phrase": "One Platter for 6 People.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "PLATTER_FOR_10_PEOPLE",
+      "name": "Platter for 10 People",
+      "hint": "Platter for 10 People",
+      "phrase": "One Platter for 10 People.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "SAAG_PANEER",
+      "name": "Saag Paneer",
+      "hint": "saag puh-NEER",
+      "phrase": "One Saag Paneer.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "DAL_MAKHANI",
+      "name": "Dal Makhani",
+      "hint": "daal mukh-UH-nee",
+      "phrase": "One Dal Makhani.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "CHANA_MASALA",
+      "name": "Chana Masala",
+      "hint": "CHUH-nuh muh-SAA-luh",
+      "phrase": "One Chana Masala.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "CHANA_DAL",
+      "name": "Chana Dal",
+      "hint": "CHUH-nuh daal",
+      "phrase": "One Chana Dal.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "ALOO_GOBI",
+      "name": "Aloo Gobi",
+      "hint": "AA-loo GOH-bee",
+      "phrase": "One Aloo Gobi.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "PANEER_TIKKA_MASALA",
+      "name": "Paneer Tikka Masala",
+      "hint": "puh-NEER TIK-uh muh-SAA-luh",
+      "phrase": "One Paneer Tikka Masala.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "KARAHI_PANEER",
+      "name": "Karahi Paneer",
+      "hint": "kuh-RAH-hee puh-NEER",
+      "phrase": "One Karahi Paneer.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "CHICKEN_BIRYANI",
+      "name": "Chicken Biryani",
+      "hint": "Chicken bir-YAA-nee",
+      "phrase": "One Chicken Biryani.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "LAMB_BIRYANI",
+      "name": "Lamb Biryani",
+      "hint": "Lamb bir-YAA-nee",
+      "phrase": "One Lamb Biryani.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "GOAT_BIRYANI",
+      "name": "Goat Biryani",
+      "hint": "Goat bir-YAA-nee",
+      "phrase": "One Goat Biryani.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "VEGETABLE_BIRYANI",
+      "name": "Vegetable Biryani",
+      "hint": "Vegetable bir-YAA-nee",
+      "phrase": "One Vegetable Biryani.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "CHICKEN_BREAST_PULAO",
+      "name": "Chicken Breast Pulao",
+      "hint": "Chicken Breast puh-LAA-oh",
+      "phrase": "One Chicken Breast Pulao.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "CHICKEN_TIKKA_MASALA",
+      "name": "Chicken Tikka Masala",
+      "hint": "Chicken TIK-uh muh-SAA-luh",
+      "phrase": "One Chicken Tikka Masala.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "LAMB_TIKKA_MASALA",
+      "name": "Lamb Tikka Masala",
+      "hint": "Lamb TIK-uh muh-SAA-luh",
+      "phrase": "One Lamb Tikka Masala.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "GOAT_TIKKA_MASALA",
+      "name": "Goat Tikka Masala",
+      "hint": "Goat TIK-uh muh-SAA-luh",
+      "phrase": "One Goat Tikka Masala.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "FISH_TIKKA_MASALA",
+      "name": "Fish Tikka Masala",
+      "hint": "Fish TIK-uh muh-SAA-luh",
+      "phrase": "One Fish Tikka Masala.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "SHRIMP_TIKKA_MASALA",
+      "name": "Shrimp Tikka Masala",
+      "hint": "Shrimp TIK-uh muh-SAA-luh",
+      "phrase": "One Shrimp Tikka Masala.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "BUTTER_TIKKA_MASALA",
+      "name": "Butter Tikka Masala",
+      "hint": "Butter TIK-uh muh-SAA-luh",
+      "phrase": "One Butter Tikka Masala.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "PLAIN_NAAN_BREAD",
+      "name": "Plain Naan Bread",
+      "hint": "Plain naan Bread",
+      "phrase": "One Plain Naan Bread.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "GARLIC_NAAN_BREAD",
+      "name": "Garlic Naan Bread",
+      "hint": "Garlic naan Bread",
+      "phrase": "One Garlic Naan Bread.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "CHILI_NAAN_BREAD",
+      "name": "Chili Naan Bread",
+      "hint": "Chili naan Bread",
+      "phrase": "One Chili Naan Bread.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "CHEESE_NAAN_BREAD",
+      "name": "Cheese Naan Bread",
+      "hint": "Cheese naan Bread",
+      "phrase": "One Cheese Naan Bread.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "KEEMA_NAAN",
+      "name": "Keema Naan",
+      "hint": "KEE-muh naan",
+      "phrase": "One Keema Naan.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "ONION_NAAN",
+      "name": "Onion Naan",
+      "hint": "Onion naan",
+      "phrase": "One Onion Naan.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "RICE",
+      "name": "Rice",
+      "hint": "Rice",
+      "phrase": "One Rice.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "ROTI",
+      "name": "Roti",
+      "hint": "ROH-tee",
+      "phrase": "One Roti.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "PAPADAM",
+      "name": "Papadam",
+      "hint": "PAA-puh-dum",
+      "phrase": "One Papadam.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "VEG_SAMOSAS",
+      "name": "Veg Samosas",
+      "hint": "Veg suh-MOH-suhz",
+      "phrase": "One Veg Samosas.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "RAITA",
+      "name": "Raita",
+      "hint": "RYE-tuh",
+      "phrase": "One Raita.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "MANGO_CHUTNEY",
+      "name": "Mango Chutney",
+      "hint": "Mango CHUT-nee",
+      "phrase": "One Mango Chutney.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "TAMARIND_CHUTNEY",
+      "name": "Tamarind Chutney",
+      "hint": "Tamarind CHUT-nee",
+      "phrase": "One Tamarind Chutney.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "MINT_CHUTNEY",
+      "name": "Mint Chutney",
+      "hint": "Mint CHUT-nee",
+      "phrase": "One Mint Chutney.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "MIXED_SPICY_PICKLES",
+      "name": "Mixed Spicy Pickles",
+      "hint": "Mixed Spicy Pickles",
+      "phrase": "One Mixed Spicy Pickles.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "SODA_CAN",
+      "name": "Soda (Can)",
+      "hint": "Soda (Can)",
+      "phrase": "One Soda (Can).",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "MANGO_LASSI",
+      "name": "Mango Lassi",
+      "hint": "Mango LUS-see",
+      "phrase": "One Mango Lassi.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "SWEET_YOGURT_LASSI",
+      "name": "Sweet Yogurt Lassi",
+      "hint": "Sweet Yogurt LUS-see",
+      "phrase": "One Sweet Yogurt Lassi.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "SALTY_YOGURT_LASSI",
+      "name": "Salty Yogurt Lassi",
+      "hint": "Salty Yogurt LUS-see",
+      "phrase": "One Salty Yogurt Lassi.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "FALOODA_ICE_CREAM",
+      "name": "Falooda Ice Cream",
+      "hint": "fuh-LOO-duh Ice Cream",
+      "phrase": "One Falooda Ice Cream.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "GULAB_JAMUN",
+      "name": "Gulab Jamun",
+      "hint": "goo-LAAB JAA-moon",
+      "phrase": "One Gulab Jamun.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "KHEER",
+      "name": "Kheer",
+      "hint": "kheer",
+      "phrase": "One Kheer.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "RASMALAI",
+      "name": "Rasmalai",
+      "hint": "rus-muh-LYE",
+      "phrase": "One Rasmalai.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "CHICKEN_NUGGETS_8_PIECES",
+      "name": "Chicken Nuggets (8 Pieces)",
+      "hint": "Chicken Nuggets (8 Pieces)",
+      "phrase": "One Chicken Nuggets (8 Pieces).",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "KIDS_CHICKEN_BURGER",
+      "name": "Kids Chicken Burger",
+      "hint": "Kids Chicken Burger",
+      "phrase": "One Kids Chicken Burger.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "KIDS_FRIES",
+      "name": "Kids Fries",
+      "hint": "Kids Fries",
+      "phrase": "One Kids Fries.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "MODIFIER_HALF",
+      "name": "Half",
+      "hint": "Half",
+      "phrase": "Half.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "MODIFIER_FULL",
+      "name": "Full",
+      "hint": "Full",
+      "phrase": "Full.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "MODIFIER_EXTRA_SPICY",
+      "name": "Extra Spicy",
+      "hint": "Extra Spicy",
+      "phrase": "Extra Spicy.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "MODIFIER_SPICY",
+      "name": "Spicy",
+      "hint": "Spicy",
+      "phrase": "Spicy.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "MODIFIER_MEDIUM_SPICE",
+      "name": "Medium Spice",
+      "hint": "Medium Spice",
+      "phrase": "Medium Spice.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "MODIFIER_MILD_SPICE",
+      "name": "Mild Spice",
+      "hint": "Mild Spice",
+      "phrase": "Mild Spice.",
+      "status": "not auditioned by a native speaker"
+    },
+    {
+      "id": "MODIFIER_NO_SPICE",
+      "name": "No Spice",
+      "hint": "No Spice",
+      "phrase": "No Spice.",
+      "status": "not auditioned by a native speaker"
+    }
+  ]
+}

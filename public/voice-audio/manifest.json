@@ -1,0 +1,218 @@
+{
+  "kind": "fixed-synthetic-menu-templates-only",
+  "identity": "bd3161e95803c4ca848ea6c0aecc69a3c1819f0f5a8dfcc6287769a746bcaf68",
+  "voice": "aura-2-thalia-en:linear16:24000:v2",
+  "sampleRate": 24000,
+  "entries": [
+    {
+      "id": "greeting",
+      "text": "Welcome to the Karahi House demo. The menu is approved by the restaurant. What can I get for you?",
+      "file": "36deaefd36eb8460a5e05dd56608dfc0e76da50401343f4c606740c3176d1b5b.pcm",
+      "bytes": 257280,
+      "sha256": "3c921b4374597baa74ddd2a31964f3b5cc19f161f30ff12b663cb0d58ca14fda"
+    },
+    {
+      "id": "spice",
+      "text": "What spice level for the whole order: Extra Spicy, Spicy, Medium Spice, Mild Spice, No Spice? You can change individual dishes.",
+      "file": "80c3864733b2c0d8a65d13db734b2260dc62f9a1dda578a0ebc224f608aa4720.pcm",
+      "bytes": 510720,
+      "sha256": "e755daf384e52297d9ae893d4b481992d2cfb444b5e859de16f0208854b313aa"
+    },
+    {
+      "id": "hot",
+      "text": "By \"hot\", do you mean Spicy or Extra Spicy?",
+      "file": "e28ba8e105e3e03380fe64f3b3e866feb4fcd663c0bad91fbdf2cbe42e72204e.pcm",
+      "bytes": 144000,
+      "sha256": "01bc6f5054c2fe47ffdc4e1ffb436bac6a86263d2315b3a42ac80ada273eee18"
+    },
+    {
+      "id": "size",
+      "text": "Half or Full for ",
+      "file": "280a3dfb56e676519757835823e0d9629936d44106c6d8aa97dff6dde4b9e71d.pcm",
+      "bytes": 92160,
+      "sha256": "b6d8151938c0b25ad3a1502875674e06145ba2fd40c2fcc070e4f4d4e6d833bc"
+    },
+    {
+      "id": "anything_else",
+      "text": "Anything else?",
+      "file": "27a41e1ddcbb82d330cad87e8a49425b7a2f4cd7d39d9f6adcdfd6e5e9b31011.pcm",
+      "bytes": 46080,
+      "sha256": "cd074151d8ef81c067b4cea673d5d9d5ac41a6703f0942b2f44dd4b088d801fd"
+    },
+    {
+      "id": "readback",
+      "text": "Please check: ",
+      "file": "4f0a75ad3d4311db3da48fd4c30e058fea899f585da4e881cbc3f74f380e7a29.pcm",
+      "bytes": 46080,
+      "sha256": "1e401776fd008bbc737c4a62effe83f0e9b70148322015c0fea5ce917f8a1e9f"
+    },
+    {
+      "id": "unavailable",
+      "text": "That dish isn't on this menu. Would you like ",
+      "file": "2a1b0db28a6dcbd86b39f50b60265522ab20c4406b22dd70c4996f8c46212212.pcm",
+      "bytes": 168960,
+      "sha256": "0a8f2bf5d339f9fa0de24ce9db0b41f2d3948bf83e9d9e1af8c9ccd5b6a35bd6"
+    },
+    {
+      "id": "unavailable_alternate",
+      "text": "I don't have that dish on this menu. Would you like ",
+      "file": "0d815ca03409451c407959f1b8ce52f7c5f14f35fd0b7db89f2d865c9884d25e.pcm",
+      "bytes": 132480,
+      "sha256": "9b9f4397ed7b08d0d1d30e359b9208dbe0987e1347e44d7d241fbfc6bbb0ea03"
+    },
+    {
+      "id": "ack_ok",
+      "text": "Okay. ",
+      "file": "856f852539025ded332adc74f21a159decec1c322ba7feb2fd9e4e79aa00559d.pcm",
+      "bytes": 26880,
+      "sha256": "e344993f19244767c298b2cfc3dbfe6452e713d03d7455136fac8ab38c276c1d"
+    },
+    {
+      "id": "ack_got",
+      "text": "Got it. ",
+      "file": "255a46ccf69a1fae517c32a9dc2dfff5ad5dc23ff8aa7fa9bb53ec49d78b1a19.pcm",
+      "bytes": 28800,
+      "sha256": "d7c738c8c0c096540d590e8a3d3e4a0b717015c6ac7ed87121a3b9b3fdbb6a96"
+    },
+    {
+      "id": "no_add",
+      "text": "No items added. ",
+      "file": "236d73fb1b4bb29ee2e23c7df77f7ad2e47577833b7413f52f52a57e00477402.pcm",
+      "bytes": 69120,
+      "sha256": "ef560b905a7926ff74d62b8153867ef7f59e8563768fe635a520ea24f6ae9821"
+    },
+    {
+      "id": "added",
+      "text": "Added ",
+      "file": "0f8bca96ed5e7a423e7bd59f7ee5837c1ed16a6b31b36a58416893d4bb4047c6.pcm",
+      "bytes": 32640,
+      "sha256": "4b8b769552da8cf9ad9251af33aef6c006bab07571b97371744282cce476aa33"
+    },
+    {
+      "id": "removed",
+      "text": "Removed ",
+      "file": "a78dd9a0a7a62c4ab6b8f7fc54e1b6de0a724daa1e3923ade0bf9ed0f0cbc9f7.pcm",
+      "bytes": 42240,
+      "sha256": "1a1f035074e8b7a878a9e4f01e805fb92e8deb0fa8bbe405de9935bbf185762a"
+    },
+    {
+      "id": "noted",
+      "text": "Noted. ",
+      "file": "a8a45a54a0eb6b7324b40f50da5a319c0fc9b8725670f68cf1bea7ac05877581.pcm",
+      "bytes": 36480,
+      "sha256": "b68fca80d70ff99acb5d14dc844912014ec8bafa1cda1957ce718044d859dcfd"
+    },
+    {
+      "id": "modifier_0",
+      "text": "Half",
+      "file": "f624a82b7e389fccb552c639ea69b6885770973128aa4a3c694746bea75203ca.pcm",
+      "bytes": 30720,
+      "sha256": "d486bd2390f96922264e127df3371a32b4fb42656a7c767d7ef49db9b41ae458"
+    },
+    {
+      "id": "modifier_1",
+      "text": "Full",
+      "file": "c7a40ae2d9acb3939f6b308d3c6e780a8adab1c97131622d3175f9ed5070f2e1.pcm",
+      "bytes": 17280,
+      "sha256": "55ecc6e1af2de98d63e14a413199b378c013252b5d30ed742aec47414350b24d"
+    },
+    {
+      "id": "modifier_2",
+      "text": "Extra Spicy",
+      "file": "1bb15f466cbcf1da945af647940c477b6529482a6d91aa1df2380bace4a70cb2.pcm",
+      "bytes": 61440,
+      "sha256": "8355c244e754b5a32f4a3e40303744f39e1c3c5551f64cc41ecb541e3ec55997"
+    },
+    {
+      "id": "modifier_3",
+      "text": "Spicy",
+      "file": "e394a8b3ab02611b27b47cc0c939622f84aab50830cf1f9a77fa1c14f1830a53.pcm",
+      "bytes": 46080,
+      "sha256": "3c1781aa8aa239f3482ddfff28992eaf5c264236f008b0282381d6bb3a730881"
+    },
+    {
+      "id": "modifier_4",
+      "text": "Medium Spice",
+      "file": "65f7c5eb7d99b2c519e01f1bf4d1477c20ce67fd1b3ad02c578c08f3dec48115.pcm",
+      "bytes": 57600,
+      "sha256": "87eeb61c23d7bccb1990e908794e32d7ede2eb511d958f3156ecf51d095c8825"
+    },
+    {
+      "id": "modifier_5",
+      "text": "Mild Spice",
+      "file": "9e4a9b596094bb3016642769860c29c9c639014f178f40411d31e20fd190c1ce.pcm",
+      "bytes": 55680,
+      "sha256": "294d3f0768dcd978d3ae2422c6601564aca269eeeb5816aaaf0d7bb49d4aafcf"
+    },
+    {
+      "id": "modifier_6",
+      "text": "No Spice",
+      "file": "97eba671508262220a145a4efd8d60eacd7f9e2015ded224465c43a413d6c4b1.pcm",
+      "bytes": 49920,
+      "sha256": "a14a91d89f3ae5942497299d4950329683c0833206782a751aa02fbd5076a80f"
+    },
+    {
+      "id": "item_RICE",
+      "text": "Rice",
+      "file": "46d13d1f054a9ff1ccc274d993fe681edae4474139f4be70ecc01924b8a2edc7.pcm",
+      "bytes": 30720,
+      "sha256": "ccc16616a1bb2943d6710537bde94f121d4c88776d9e69995a223c9e63badd8c"
+    },
+    {
+      "id": "item_ROTI",
+      "text": "Roti",
+      "file": "5ce1e33a2c9fc141e7a400fbbed56f1fbadbe4197ac31afb2920d77009292e5d.pcm",
+      "bytes": 34560,
+      "sha256": "782b1724c79f80472ac97a613619cce0df514b08c0acdcce0610474afc0e791f"
+    },
+    {
+      "id": "item_RAITA",
+      "text": "Raita",
+      "file": "6e129707558f426198da482233b648b4203fc84ee3a61260a9c745db293bbe98.pcm",
+      "bytes": 36480,
+      "sha256": "85160a6d7a251d992c2aa931352b9411e53219f515c1650795be37d20e1f05cd"
+    },
+    {
+      "id": "item_KHEER",
+      "text": "Kheer",
+      "file": "47a900bac4535c1a35e9007f38617ef4ba325c26214ca06c90f516ccafd3d397.pcm",
+      "bytes": 28800,
+      "sha256": "8f62f2b1ef7e67c34344c77fdf2f2f9d5a4d99c927004c6f34c8c9dffdd8f806"
+    },
+    {
+      "id": "item_PAPADAM",
+      "text": "Papadam",
+      "file": "28f46e84d86217c7fd0452f04c03782564de13bdd816563227e0e9e638c8b426.pcm",
+      "bytes": 44160,
+      "sha256": "236d6faa7ccb0eb085efee429e12af84e500aa15306e9e583a3413a532d54883"
+    },
+    {
+      "id": "item_GARLIC_NAAN_BREAD",
+      "text": "Garlic Naan Bread",
+      "file": "fcc1337d44bfdddc5569c42e0ad4d5888f83d26bb16aa11df007f0798eb28f87.pcm",
+      "bytes": 78720,
+      "sha256": "ea7a95e360f5f2272b98b3e977e70b083b800e9de58ac569f91bf3ca7d1b7c02"
+    },
+    {
+      "id": "item_CHICKEN_WHITE_KARAHI",
+      "text": "Chicken White Karahi",
+      "file": "a98fe914a60eba91bc663aefe3bcdc0f93f0043c0f7373025acafbf9fd4ff651.pcm",
+      "bytes": 59520,
+      "sha256": "1ad266cc248bd81a3411380a76d6ecd065a173a867c5cf072caf91770c8d10ec"
+    },
+    {
+      "id": "item_CHICKEN_BIRYANI",
+      "text": "Chicken Biryani",
+      "file": "bd00df0688892ab6b589267bf5c198a2e38c4c27c3bd559bc047fd069d2306f8.pcm",
+      "bytes": 53760,
+      "sha256": "d6ab53f8ba2598242bad46bb91ed0d81875a6b83d87531946191f633438a208f"
+    },
+    {
+      "id": "item_MANGO_LASSI",
+      "text": "Mango Lassi",
+      "file": "a4d40269483ff561db065fef448c3d0bfbc22e17937cabf1960893f1af5c2360.pcm",
+      "bytes": 57600,
+      "sha256": "fda93cb1d49e6b6f2c70d26638fa6fd96f77c3cb89646d740f1d077b106e5db6"
+    }
+  ]
+}

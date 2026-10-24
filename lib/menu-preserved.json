@@ -1,0 +1,37 @@
+{
+  "restaurant": {
+    "name": "Karahi House",
+    "tagline": "Pakistani & Indian Halal Food",
+    "address": "1409 Polk St, San Francisco, CA 94109",
+    "phone": "(415) 757-0940",
+    "website": "www.karahihousesf.com",
+    "halal": true,
+    "services": [
+      "Pickup demo",
+      "Catering inquiries"
+    ],
+    "hours": [
+      {
+        "days": "Monday to Thursday",
+        "open": "11:00 AM",
+        "close": "11:45 PM"
+      },
+      {
+        "days": "Friday",
+        "open": "11:00 AM",
+        "close": "11:59 PM"
+      },
+      {
+        "days": "Saturday to Sunday",
+        "open": "11:00 AM",
+        "close": "1:45 AM (late night)"
+      }
+    ],
+    "hoursSpoken": "We're open 11 AM to around midnight Monday through Friday, and open late until about 2 AM on Saturday and Sunday."
+  },
+  "catering": {
+    "note": "Catering available for pickup or delivery. Half trays serve ~10-12, full trays serve ~20-25.",
+    "inquiryOnly": true,
+    "pricesNeedStaffConfirmation": true
+  }
+}

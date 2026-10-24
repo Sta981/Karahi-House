@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: karahi-house-voice-demo
+    runtime: node
+    region: oregon
+    plan: free
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm run start:voice
+    healthCheckPath: /voice-health
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_VERSION
+        value: 24.19.0
+      - key: NODE_ENV
+        value: production
+      - key: VOICE_DEPLOYMENT_LABEL
+        value: US-hosted
+      - key: VOICE_TTS_PROVIDER
+        value: aura-2
+      - key: VOICE_FIXED_AUDIO_CACHE
+        value: "true"
+      - key: VOICE_ENDPOINT_MODE
+        value: adaptive
+      - key: VOICE_ACKNOWLEDGEMENT
+        value: "true"
+      - key: VOICE_STATE_KEYTERMS
+        value: "true"
+      - key: VOICE_FAQ_ENABLED
+        value: "false"
+      - key: VOICE_PERSIST_LOGS
+        value: "false"
+      - key: DEEPGRAM_API_KEY
+        sync: false
+      - key: VOICE_DEMO_ACCESS_TOKEN
+        generateValue: true

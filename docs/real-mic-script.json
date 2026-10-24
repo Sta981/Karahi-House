@@ -1,0 +1,254 @@
+{
+  "kind": "manual-development-not-held-out",
+  "turnsPerModel": 30,
+  "models": [
+    "flux",
+    "nova-3",
+    "nova-3-en-IN"
+  ],
+  "speakersExpected": 1,
+  "menuSource": "lib/menu-source.json",
+  "expectationsFrom": "final menu and user intent; not matcher output",
+  "rows": [
+    {
+      "id": "mic_01",
+      "turn": 1,
+      "session": "A",
+      "reset": true,
+      "text": "Salam, can I order for pickup?",
+      "expected": "Pickup FAQ; no cart addition."
+    },
+    {
+      "id": "mic_02",
+      "turn": 2,
+      "session": "A",
+      "reset": false,
+      "text": "Please add one chicken biryani.",
+      "expected": "1 Chicken Biryani; ask the order spice level."
+    },
+    {
+      "id": "mic_03",
+      "turn": 3,
+      "session": "A",
+      "reset": false,
+      "text": "Medium spice for the order.",
+      "expected": "Chicken Biryani becomes Medium Spice."
+    },
+    {
+      "id": "mic_04",
+      "turn": 4,
+      "session": "A",
+      "reset": false,
+      "text": "And two garlic naan, please.",
+      "expected": "Add 2 Garlic Naan Bread; inherit Medium Spice."
+    },
+    {
+      "id": "mic_05",
+      "turn": 5,
+      "session": "A",
+      "reset": false,
+      "text": "No, make the garlic naan three.",
+      "expected": "Replace naan quantity with 3; no additional line."
+    },
+    {
+      "id": "mic_06",
+      "turn": 6,
+      "session": "A",
+      "reset": false,
+      "text": "Remove one garlic naan.",
+      "expected": "Reduce naan quantity to 2; keep biryani."
+    },
+    {
+      "id": "mic_07",
+      "turn": 7,
+      "session": "B",
+      "reset": true,
+      "text": "Can you do a lamb white karahi?",
+      "expected": "Ask Half/Full; never guess a size."
+    },
+    {
+      "id": "mic_08",
+      "turn": 8,
+      "session": "B",
+      "reset": false,
+      "text": "Full, with no spice.",
+      "expected": "1 Full Lamb White Karahi, No Spice."
+    },
+    {
+      "id": "mic_09",
+      "turn": 9,
+      "session": "B",
+      "reset": false,
+      "text": "Add a mango lassi as well.",
+      "expected": "Add 1 Mango Lassi; no spice/size question for lassi."
+    },
+    {
+      "id": "mic_10",
+      "turn": 10,
+      "session": "B",
+      "reset": false,
+      "text": "Actually, make the karahi half.",
+      "expected": "Replace Full with Half; preserve quantity and No Spice."
+    },
+    {
+      "id": "mic_11",
+      "turn": 11,
+      "session": "B",
+      "reset": false,
+      "text": "That will be all.",
+      "expected": "Ask the pickup name before read-back."
+    },
+    {
+      "id": "mic_12",
+      "turn": 12,
+      "session": "B",
+      "reset": false,
+      "text": "Test Customer.",
+      "expected": "Read back cart and local subtotal; ask confirmation."
+    },
+    {
+      "id": "mic_13",
+      "turn": 13,
+      "session": "B",
+      "reset": false,
+      "text": "Yes, that is correct.",
+      "expected": "Pending staff acceptance; never say restaurant accepted."
+    },
+    {
+      "id": "mic_14",
+      "turn": 14,
+      "session": "C",
+      "reset": true,
+      "text": "One fish pakora, make it hot.",
+      "expected": "Ask Spicy versus Extra Spicy; hot must remain unset."
+    },
+    {
+      "id": "mic_15",
+      "turn": 15,
+      "session": "C",
+      "reset": false,
+      "text": "Spicy, please.",
+      "expected": "Set Fish Pakora to Spicy."
+    },
+    {
+      "id": "mic_16",
+      "turn": 16,
+      "session": "C",
+      "reset": false,
+      "text": "Actually, make the pakora extra spicy.",
+      "expected": "Override Fish Pakora to Extra Spicy; no added line."
+    },
+    {
+      "id": "mic_17",
+      "turn": 17,
+      "session": "C",
+      "reset": false,
+      "text": "Please add butter chicken.",
+      "expected": "Unavailable; offer only actual menu items; no silent addition."
+    },
+    {
+      "id": "mic_18",
+      "turn": 18,
+      "session": "C",
+      "reset": false,
+      "text": "No.",
+      "expected": "Decline the offered substitute; keep Fish Pakora."
+    },
+    {
+      "id": "mic_19",
+      "turn": 19,
+      "session": "C",
+      "reset": false,
+      "text": "Add one gulab.",
+      "expected": "Ask to confirm Gulab Jamun; truncated name must not silently add."
+    },
+    {
+      "id": "mic_20",
+      "turn": 20,
+      "session": "C",
+      "reset": false,
+      "text": "Yes, one gulab jamun.",
+      "expected": "Add 1 Gulab Jamun; dessert has no spice/size."
+    },
+    {
+      "id": "mic_21",
+      "turn": 21,
+      "session": "D",
+      "reset": true,
+      "text": "Mujhe aik chicken biryani chahiye.",
+      "expected": "1 Chicken Biryani; ask spice."
+    },
+    {
+      "id": "mic_22",
+      "turn": 22,
+      "session": "D",
+      "reset": false,
+      "text": "Bilkul no spice.",
+      "expected": "Set the order to No Spice."
+    },
+    {
+      "id": "mic_23",
+      "turn": 23,
+      "session": "D",
+      "reset": false,
+      "text": "Do garlic naan bhi de dein.",
+      "expected": "Add 2 Garlic Naan Bread; inherit No Spice."
+    },
+    {
+      "id": "mic_24",
+      "turn": 24,
+      "session": "D",
+      "reset": false,
+      "text": "Nahi, garlic naan teen kar dein.",
+      "expected": "Replace naan quantity with 3; do not append."
+    },
+    {
+      "id": "mic_25",
+      "turn": 25,
+      "session": "D",
+      "reset": false,
+      "text": "Aur ek mango lassi.",
+      "expected": "Add 1 Mango Lassi; no spice modifier."
+    },
+    {
+      "id": "mic_26",
+      "turn": 26,
+      "session": "E",
+      "reset": true,
+      "text": "One chicken [pause 700 ms] biryani, mild spice.",
+      "expected": "One complete item, Mild Spice; no reply during the pause."
+    },
+    {
+      "id": "mic_27",
+      "turn": 27,
+      "session": "E",
+      "reset": false,
+      "text": "And one rice [pause 1000 ms] and one mango lassi.",
+      "expected": "Add both items once; no reply during the pause."
+    },
+    {
+      "id": "mic_28",
+      "turn": 28,
+      "session": "E",
+      "reset": false,
+      "text": "One garlic naan [pause 600 ms] no, make it two, mild spice.",
+      "expected": "End with 2 Garlic Naan Bread, Mild Spice; no unrequested additions."
+    },
+    {
+      "id": "mic_29",
+      "turn": 29,
+      "session": "E",
+      "reset": false,
+      "text": "Can I have a karahi?",
+      "expected": "Clarify protein/style; every offered candidate must be an actual karahi."
+    },
+    {
+      "id": "mic_30",
+      "turn": 30,
+      "session": "E",
+      "reset": false,
+      "text": "I have a peanut allergy.",
+      "expected": "Mark needs_review and defer ingredient safety to staff."
+    }
+  ]
+}

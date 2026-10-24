@@ -1,0 +1,838 @@
+{
+  "schema_version": 1,
+  "status": "FINAL and only menu source of truth. Approved by the restaurant.",
+  "source": "Restaurant's own website ordering page (menu list plus individual item pages), copied by the project owner in October 2026. Replaces every earlier menu file.",
+  "restaurant": {
+    "name": "Karahi House",
+    "address": "1409 Polk Street, San Francisco, CA 94109",
+    "phone_listed_on_website": "(415) 466-8839",
+    "fulfillment_listed_on_website": [
+      "Delivery",
+      "Pick Up"
+    ],
+    "pickup_eta_listed_on_website": "ASAP (30 mins)",
+    "hours_note": "Website showed 'Open, closes at 11:30 PM' on the capture day. Full weekly hours were not captured."
+  },
+  "currency": "USD",
+  "price_unit": "cents (integers)",
+  "modifiers": {
+    "spice_level": {
+      "required": true,
+      "choose": 1,
+      "options": [
+        "Extra Spicy",
+        "Spicy",
+        "Medium Spice",
+        "Mild Spice",
+        "No Spice"
+      ],
+      "applies_to": "every item with spice=true (all items except categories Sides, Beverages, Desserts, Kids)"
+    },
+    "size": {
+      "required": true,
+      "choose": 1,
+      "options": [
+        "Half",
+        "Full"
+      ],
+      "rule": "Only on Lahori, White, Black Pepper and Shinwari karahis. price_cents is the Half price; Full adds item.size.Full cents. Desi Chicken has no size."
+    },
+    "notes": {
+      "required": false,
+      "type": "free_text",
+      "example": "no green onions"
+    },
+    "quantity": {
+      "required": true,
+      "default": 1
+    }
+  },
+  "verification": {
+    "prices_and_names": "Copied from the website menu list.",
+    "size_surcharges": "size_verified=true: read on the item's own page (7 items). size_verified=false: inferred from the printed booklet (6 items); every verified item matched the booklet.",
+    "spice_level": "Seen on item pages for Chicken Lahori Karahi, karahi variants, Garlic Naan, Chicken Biryani, Chicken Tikka Masala, Fish Tikka Masala, Fish Pakora, Desi Chicken; absent on Mango Lassi. Elsewhere it follows the owner's rule. Rice, Roti, Platters and Soda were confirmed by the project owner.",
+    "descriptions": "description_ai=true means the website itself says the text was created with the help of AI. Use descriptions only for short FAQ answers."
+  },
+  "items": [
+    {
+      "id": "GOAT_LAHORI_KARAHI",
+      "name": "Goat Lahori Karahi",
+      "category": "Lahori Karahi",
+      "family": "Lahori Karahi",
+      "protein": "Goat",
+      "price_cents": 2400,
+      "size": {
+        "Half": 0,
+        "Full": 1800
+      },
+      "size_verified": true,
+      "spice": true,
+      "description": "Cooked with Onions and Tomatoes"
+    },
+    {
+      "id": "LAMB_LAHORI_KARAHI",
+      "name": "Lamb Lahori Karahi",
+      "category": "Lahori Karahi",
+      "family": "Lahori Karahi",
+      "protein": "Lamb",
+      "price_cents": 2200,
+      "size": {
+        "Half": 0,
+        "Full": 1600
+      },
+      "size_verified": false,
+      "spice": true,
+      "description": "Cooked with Onions and Tomatoes"
+    },
+    {
+      "id": "CHICKEN_LAHORI_KARAHI",
+      "name": "Chicken Lahori Karahi",
+      "category": "Lahori Karahi",
+      "family": "Lahori Karahi",
+      "protein": "Chicken",
+      "price_cents": 2000,
+      "size": {
+        "Half": 0,
+        "Full": 1600
+      },
+      "size_verified": true,
+      "spice": true,
+      "description": "Cooked with Onions and Tomatoes"
+    },
+    {
+      "id": "FISH_KARAHI",
+      "name": "Fish Karahi",
+      "category": "Fish",
+      "price_cents": 2100,
+      "spice": true
+    },
+    {
+      "id": "FISH_PAKORA",
+      "name": "Fish Pakora",
+      "category": "Fish",
+      "price_cents": 1700,
+      "spice": true,
+      "description": "Bite-size fish marinated in spices and fried"
+    },
+    {
+      "id": "FISH_TANDOORI",
+      "name": "Fish Tandoori",
+      "category": "Fish",
+      "price_cents": 2100,
+      "spice": true
+    },
+    {
+      "id": "FISH_AND_CHIPS",
+      "name": "Fish & Chips",
+      "category": "Fish",
+      "price_cents": 1800,
+      "spice": true
+    },
+    {
+      "id": "SHRIMP_KARAHI",
+      "name": "Shrimp Karahi",
+      "category": "Fish",
+      "price_cents": 2100,
+      "spice": true
+    },
+    {
+      "id": "GOAT_WHITE_KARAHI",
+      "name": "Goat White Karahi",
+      "category": "White Karahi",
+      "family": "White Karahi",
+      "protein": "Goat",
+      "price_cents": 2400,
+      "size": {
+        "Half": 0,
+        "Full": 1800
+      },
+      "size_verified": false,
+      "spice": true,
+      "description": "A creamy, tomato-free mild curry in a karahi"
+    },
+    {
+      "id": "LAMB_WHITE_KARAHI",
+      "name": "Lamb White Karahi",
+      "category": "White Karahi",
+      "family": "White Karahi",
+      "protein": "Lamb",
+      "price_cents": 2200,
+      "size": {
+        "Half": 0,
+        "Full": 1600
+      },
+      "size_verified": false,
+      "spice": true,
+      "description": "A creamy, tomato-free mild curry in a karahi"
+    },
+    {
+      "id": "CHICKEN_WHITE_KARAHI",
+      "name": "Chicken White Karahi",
+      "category": "White Karahi",
+      "family": "White Karahi",
+      "protein": "Chicken",
+      "price_cents": 2000,
+      "size": {
+        "Half": 0,
+        "Full": 1600
+      },
+      "size_verified": true,
+      "spice": true,
+      "description": "A creamy, tomato-free mild curry in a karahi"
+    },
+    {
+      "id": "DESI_CHICKEN",
+      "name": "Desi Chicken",
+      "category": "White Karahi",
+      "family": "Desi Chicken",
+      "protein": "Chicken",
+      "price_cents": 4000,
+      "spice": true,
+      "description": "Desi Chicken is a traditional white Karahi dish with tender chicken cooked in a flavorful blend of spices.",
+      "description_ai": true
+    },
+    {
+      "id": "GOAT_KARAHI_BLACK_PEPPER",
+      "name": "Goat Karahi Black Pepper",
+      "category": "Karahi Black Pepper",
+      "family": "Karahi Black Pepper",
+      "protein": "Goat",
+      "price_cents": 2400,
+      "size": {
+        "Half": 0,
+        "Full": 1800
+      },
+      "size_verified": true,
+      "spice": true,
+      "description": "A dry curry with heavy emphasis on black pepper"
+    },
+    {
+      "id": "LAMB_KARAHI_BLACK_PEPPER",
+      "name": "Lamb Karahi Black Pepper",
+      "category": "Karahi Black Pepper",
+      "family": "Karahi Black Pepper",
+      "protein": "Lamb",
+      "price_cents": 2200,
+      "size": {
+        "Half": 0,
+        "Full": 1600
+      },
+      "size_verified": true,
+      "spice": true,
+      "description": "A dry curry with heavy emphasis on black pepper"
+    },
+    {
+      "id": "CHICKEN_KARAHI_BLACK_PEPPER",
+      "name": "Chicken Karahi Black Pepper",
+      "category": "Karahi Black Pepper",
+      "family": "Karahi Black Pepper",
+      "protein": "Chicken",
+      "price_cents": 2000,
+      "size": {
+        "Half": 0,
+        "Full": 1600
+      },
+      "size_verified": false,
+      "spice": true,
+      "description": "A dry curry with heavy emphasis on black pepper"
+    },
+    {
+      "id": "GOAT_SHINWARI_KARAHI",
+      "name": "Goat Shinwari Karahi",
+      "category": "Shinwari Karahi",
+      "family": "Shinwari Karahi",
+      "protein": "Goat",
+      "price_cents": 2500,
+      "size": {
+        "Half": 0,
+        "Full": 1700
+      },
+      "size_verified": true,
+      "spice": true,
+      "description": "Curry with lots of tomatoes, green chilis and ginger"
+    },
+    {
+      "id": "LAMB_SHINWARI_KARAHI",
+      "name": "Lamb Shinwari Karahi",
+      "category": "Shinwari Karahi",
+      "family": "Shinwari Karahi",
+      "protein": "Lamb",
+      "price_cents": 2200,
+      "size": {
+        "Half": 0,
+        "Full": 1800
+      },
+      "size_verified": false,
+      "spice": true,
+      "description": "Curry with lots of tomatoes, green chilis and ginger"
+    },
+    {
+      "id": "BEEF_SHINWARI_KARAHI",
+      "name": "Beef Shinwari Karahi",
+      "category": "Shinwari Karahi",
+      "family": "Shinwari Karahi",
+      "protein": "Beef",
+      "price_cents": 2200,
+      "size": {
+        "Half": 0,
+        "Full": 1800
+      },
+      "size_verified": false,
+      "spice": true,
+      "description": "Curry with lots of tomatoes, green chilis and ginger"
+    },
+    {
+      "id": "CHICKEN_SHINWARI_KARAHI",
+      "name": "Chicken Shinwari Karahi",
+      "category": "Shinwari Karahi",
+      "family": "Shinwari Karahi",
+      "protein": "Chicken",
+      "price_cents": 2000,
+      "size": {
+        "Half": 0,
+        "Full": 1600
+      },
+      "size_verified": true,
+      "spice": true,
+      "description": "Curry with lots of tomatoes, green chilis and ginger"
+    },
+    {
+      "id": "CHICKEN_CHEESE_HANDI",
+      "name": "Chicken Cheese Handi",
+      "category": "Handi Curry",
+      "price_cents": 2200,
+      "spice": true
+    },
+    {
+      "id": "KORMA_CHICKEN",
+      "name": "Korma Chicken",
+      "category": "Handi Curry",
+      "family": "Korma",
+      "protein": "Chicken",
+      "price_cents": 1800,
+      "spice": true
+    },
+    {
+      "id": "KORMA_GOAT",
+      "name": "Korma Goat",
+      "category": "Handi Curry",
+      "family": "Korma",
+      "protein": "Goat",
+      "price_cents": 2000,
+      "spice": true
+    },
+    {
+      "id": "KORMA_LAMB",
+      "name": "Korma Lamb",
+      "category": "Handi Curry",
+      "family": "Korma",
+      "protein": "Lamb",
+      "price_cents": 2000,
+      "spice": true
+    },
+    {
+      "id": "BEEF_NIHARI",
+      "name": "Beef Nihari",
+      "category": "Handi Curry",
+      "price_cents": 1800,
+      "spice": true
+    },
+    {
+      "id": "MALAI_BOTI",
+      "name": "Malai Boti",
+      "category": "BBQ Dishes",
+      "price_cents": 1800,
+      "spice": true
+    },
+    {
+      "id": "GREEN_BOTI",
+      "name": "Green Boti",
+      "category": "BBQ Dishes",
+      "price_cents": 1800,
+      "spice": true
+    },
+    {
+      "id": "CHICKEN_BOTI",
+      "name": "Chicken Boti",
+      "category": "BBQ Dishes",
+      "price_cents": 1700,
+      "spice": true
+    },
+    {
+      "id": "LAMB_BOTI",
+      "name": "Lamb Boti",
+      "category": "BBQ Dishes",
+      "price_cents": 1800,
+      "spice": true
+    },
+    {
+      "id": "CHICKEN_SEEKH_KABAB",
+      "name": "Chicken Seekh Kabab",
+      "category": "BBQ Dishes",
+      "price_cents": 1500,
+      "spice": true
+    },
+    {
+      "id": "LAMB_SEEKH_KABAB",
+      "name": "Lamb Seekh Kabab",
+      "category": "BBQ Dishes",
+      "price_cents": 1500,
+      "spice": true
+    },
+    {
+      "id": "BEEF_SEEKH_KABAB",
+      "name": "Beef Seekh Kabab",
+      "category": "BBQ Dishes",
+      "price_cents": 1500,
+      "spice": true
+    },
+    {
+      "id": "CHICKEN_LEG_OR_BREAST",
+      "name": "Chicken Leg or Breast",
+      "category": "BBQ Dishes",
+      "price_cents": 1500,
+      "spice": true
+    },
+    {
+      "id": "CHICKEN_65",
+      "name": "Chicken 65",
+      "category": "BBQ Dishes",
+      "price_cents": 1700,
+      "spice": true
+    },
+    {
+      "id": "CHICKEN_KEEMA_KARAHI",
+      "name": "Chicken Keema Karahi",
+      "category": "Keema Karahi",
+      "family": "Keema Karahi",
+      "protein": "Chicken",
+      "price_cents": 1800,
+      "spice": true,
+      "description": "Ground meat curry with spicy tomatoes"
+    },
+    {
+      "id": "BEEF_KEEMA_KARAHI",
+      "name": "Beef Keema Karahi",
+      "category": "Keema Karahi",
+      "family": "Keema Karahi",
+      "protein": "Beef",
+      "price_cents": 2000,
+      "spice": true,
+      "description": "Ground meat curry with spicy tomatoes"
+    },
+    {
+      "id": "LAMB_KEEMA_KARAHI",
+      "name": "Lamb Keema Karahi",
+      "category": "Keema Karahi",
+      "family": "Keema Karahi",
+      "protein": "Lamb",
+      "price_cents": 2000,
+      "spice": true,
+      "description": "Ground meat curry with spicy tomatoes"
+    },
+    {
+      "id": "BRAINS_KARAHI",
+      "name": "Brains Karahi",
+      "category": "Keema Karahi",
+      "price_cents": 2200,
+      "spice": true,
+      "description": "Ground meat curry with spicy tomatoes"
+    },
+    {
+      "id": "PLATTER_FOR_4_PEOPLE",
+      "name": "Platter for 4 People",
+      "category": "Platters",
+      "price_cents": 7500,
+      "spice": true,
+      "includes": [
+        "Malai Boti",
+        "Green Boti",
+        "Chicken Boti",
+        "Lamb Boti",
+        "Chicken Seekh Kebab",
+        "Lamb Seekh Kebab",
+        "Beef Seekh Kebab",
+        "Chicken Leg or Breast",
+        "Biryani Rice"
+      ],
+      "website_name": "For 4 People"
+    },
+    {
+      "id": "PLATTER_FOR_6_PEOPLE",
+      "name": "Platter for 6 People",
+      "category": "Platters",
+      "price_cents": 10000,
+      "spice": true,
+      "includes": [
+        "Malai Boti",
+        "Green Boti",
+        "Chicken Boti",
+        "Lamb Boti",
+        "Chicken Seekh Kebab",
+        "Lamb Seekh Kebab",
+        "Beef Seekh Kebab",
+        "Chicken Leg or Breast",
+        "Biryani Rice"
+      ],
+      "website_name": "For 6 People"
+    },
+    {
+      "id": "PLATTER_FOR_10_PEOPLE",
+      "name": "Platter for 10 People",
+      "category": "Platters",
+      "price_cents": 19500,
+      "spice": true,
+      "includes": [
+        "Malai Boti",
+        "Green Boti",
+        "Chicken Boti",
+        "Lamb Boti",
+        "Chicken Seekh Kebab",
+        "Lamb Seekh Kebab",
+        "Beef Seekh Kebab",
+        "Chicken Leg or Breast",
+        "Biryani Rice"
+      ],
+      "website_name": "For 10 People"
+    },
+    {
+      "id": "SAAG_PANEER",
+      "name": "Saag Paneer",
+      "category": "Veggie Dishes",
+      "price_cents": 1600,
+      "spice": true
+    },
+    {
+      "id": "DAL_MAKHANI",
+      "name": "Dal Makhani",
+      "category": "Veggie Dishes",
+      "price_cents": 1400,
+      "spice": true
+    },
+    {
+      "id": "CHANA_MASALA",
+      "name": "Chana Masala",
+      "category": "Veggie Dishes",
+      "price_cents": 1400,
+      "spice": true
+    },
+    {
+      "id": "CHANA_DAL",
+      "name": "Chana Dal",
+      "category": "Veggie Dishes",
+      "price_cents": 1400,
+      "spice": true
+    },
+    {
+      "id": "ALOO_GOBI",
+      "name": "Aloo Gobi",
+      "category": "Veggie Dishes",
+      "price_cents": 1500,
+      "spice": true
+    },
+    {
+      "id": "PANEER_TIKKA_MASALA",
+      "name": "Paneer Tikka Masala",
+      "category": "Veggie Dishes",
+      "price_cents": 1800,
+      "spice": true
+    },
+    {
+      "id": "KARAHI_PANEER",
+      "name": "Karahi Paneer",
+      "category": "Veggie Dishes",
+      "price_cents": 1800,
+      "spice": true
+    },
+    {
+      "id": "CHICKEN_BIRYANI",
+      "name": "Chicken Biryani",
+      "category": "Biryani",
+      "price_cents": 1700,
+      "spice": true,
+      "description": "Chicken Biryani is a fragrant layered rice dish with tender chicken, aromatic spices, and a hint of saffron.",
+      "description_ai": true
+    },
+    {
+      "id": "LAMB_BIRYANI",
+      "name": "Lamb Biryani",
+      "category": "Biryani",
+      "price_cents": 1800,
+      "spice": true
+    },
+    {
+      "id": "GOAT_BIRYANI",
+      "name": "Goat Biryani",
+      "category": "Biryani",
+      "price_cents": 1900,
+      "spice": true
+    },
+    {
+      "id": "VEGETABLE_BIRYANI",
+      "name": "Vegetable Biryani",
+      "category": "Biryani",
+      "price_cents": 1300,
+      "spice": true
+    },
+    {
+      "id": "CHICKEN_BREAST_PULAO",
+      "name": "Chicken Breast Pulao",
+      "category": "Biryani",
+      "price_cents": 1800,
+      "spice": true
+    },
+    {
+      "id": "CHICKEN_TIKKA_MASALA",
+      "name": "Chicken Tikka Masala",
+      "category": "Tikka Masala",
+      "family": "Tikka Masala",
+      "protein": "Chicken",
+      "price_cents": 1800,
+      "spice": true,
+      "description": "Chicken Tikka Masalas features grilled chicken chunks simmered in a creamy, spiced tomato sauce.",
+      "description_ai": true,
+      "website_name": "Chicken Tikka Masalas"
+    },
+    {
+      "id": "LAMB_TIKKA_MASALA",
+      "name": "Lamb Tikka Masala",
+      "category": "Tikka Masala",
+      "family": "Tikka Masala",
+      "protein": "Lamb",
+      "price_cents": 1800,
+      "spice": true,
+      "website_name": "Lamb Tikka Masalas"
+    },
+    {
+      "id": "GOAT_TIKKA_MASALA",
+      "name": "Goat Tikka Masala",
+      "category": "Tikka Masala",
+      "family": "Tikka Masala",
+      "protein": "Goat",
+      "price_cents": 2000,
+      "spice": true,
+      "website_name": "Goat Tikka Masalas"
+    },
+    {
+      "id": "FISH_TIKKA_MASALA",
+      "name": "Fish Tikka Masala",
+      "category": "Tikka Masala",
+      "family": "Tikka Masala",
+      "protein": "Fish",
+      "price_cents": 2200,
+      "spice": true,
+      "description": "Fish Tikka Masalas combines marinated grilled fish with a spiced, creamy masala sauce for a flavorful meal.",
+      "description_ai": true,
+      "website_name": "Fish Tikka Masalas"
+    },
+    {
+      "id": "SHRIMP_TIKKA_MASALA",
+      "name": "Shrimp Tikka Masala",
+      "category": "Tikka Masala",
+      "family": "Tikka Masala",
+      "protein": "Shrimp",
+      "price_cents": 2000,
+      "spice": true,
+      "website_name": "Shrimp Tikka Masalas"
+    },
+    {
+      "id": "BUTTER_TIKKA_MASALA",
+      "name": "Butter Tikka Masala",
+      "category": "Tikka Masala",
+      "family": "Tikka Masala",
+      "price_cents": 1800,
+      "spice": true,
+      "website_name": "Butter Tikka Masalas"
+    },
+    {
+      "id": "PLAIN_NAAN_BREAD",
+      "name": "Plain Naan Bread",
+      "category": "Naan",
+      "price_cents": 300,
+      "spice": true
+    },
+    {
+      "id": "GARLIC_NAAN_BREAD",
+      "name": "Garlic Naan Bread",
+      "category": "Naan",
+      "price_cents": 399,
+      "spice": true,
+      "description": "Garlic Naan Bread is warm and pillowy, infused with fragrant garlic for an irresistible side.",
+      "description_ai": true
+    },
+    {
+      "id": "CHILI_NAAN_BREAD",
+      "name": "Chili Naan Bread",
+      "category": "Naan",
+      "price_cents": 399,
+      "spice": true
+    },
+    {
+      "id": "CHEESE_NAAN_BREAD",
+      "name": "Cheese Naan Bread",
+      "category": "Naan",
+      "price_cents": 499,
+      "spice": true
+    },
+    {
+      "id": "KEEMA_NAAN",
+      "name": "Keema Naan",
+      "category": "Naan",
+      "price_cents": 499,
+      "spice": true
+    },
+    {
+      "id": "ONION_NAAN",
+      "name": "Onion Naan",
+      "category": "Naan",
+      "price_cents": 399,
+      "spice": true
+    },
+    {
+      "id": "RICE",
+      "name": "Rice",
+      "category": "Naan",
+      "price_cents": 299,
+      "spice": true
+    },
+    {
+      "id": "ROTI",
+      "name": "Roti",
+      "category": "Naan",
+      "price_cents": 250,
+      "spice": true
+    },
+    {
+      "id": "PAPADAM",
+      "name": "Papadam",
+      "category": "Sides",
+      "price_cents": 300,
+      "spice": false
+    },
+    {
+      "id": "VEG_SAMOSAS",
+      "name": "Veg Samosas",
+      "category": "Sides",
+      "price_cents": 450,
+      "spice": false
+    },
+    {
+      "id": "RAITA",
+      "name": "Raita",
+      "category": "Sides",
+      "price_cents": 199,
+      "spice": false,
+      "website_name": "Rita"
+    },
+    {
+      "id": "MANGO_CHUTNEY",
+      "name": "Mango Chutney",
+      "category": "Sides",
+      "price_cents": 299,
+      "spice": false
+    },
+    {
+      "id": "TAMARIND_CHUTNEY",
+      "name": "Tamarind Chutney",
+      "category": "Sides",
+      "price_cents": 299,
+      "spice": false
+    },
+    {
+      "id": "MINT_CHUTNEY",
+      "name": "Mint Chutney",
+      "category": "Sides",
+      "price_cents": 299,
+      "spice": false
+    },
+    {
+      "id": "MIXED_SPICY_PICKLES",
+      "name": "Mixed Spicy Pickles",
+      "category": "Sides",
+      "price_cents": 299,
+      "spice": false
+    },
+    {
+      "id": "SODA_CAN",
+      "name": "Soda (Can)",
+      "category": "Beverages",
+      "price_cents": 175,
+      "spice": false
+    },
+    {
+      "id": "MANGO_LASSI",
+      "name": "Mango Lassi",
+      "category": "Beverages",
+      "price_cents": 450,
+      "spice": false,
+      "description": "Mango Lassi is a smooth, creamy yogurt drink blended with sweet mango, offering a cool and tropical escape.",
+      "description_ai": true
+    },
+    {
+      "id": "SWEET_YOGURT_LASSI",
+      "name": "Sweet Yogurt Lassi",
+      "category": "Beverages",
+      "price_cents": 499,
+      "spice": false,
+      "website_name": "Sweet Yogurt Lasi"
+    },
+    {
+      "id": "SALTY_YOGURT_LASSI",
+      "name": "Salty Yogurt Lassi",
+      "category": "Beverages",
+      "price_cents": 599,
+      "spice": false,
+      "website_name": "Salty Yogurt Lasi"
+    },
+    {
+      "id": "FALOODA_ICE_CREAM",
+      "name": "Falooda Ice Cream",
+      "category": "Desserts",
+      "price_cents": 799,
+      "spice": false
+    },
+    {
+      "id": "GULAB_JAMUN",
+      "name": "Gulab Jamun",
+      "category": "Desserts",
+      "price_cents": 499,
+      "spice": false,
+      "website_name": "Galub Jamum"
+    },
+    {
+      "id": "KHEER",
+      "name": "Kheer",
+      "category": "Desserts",
+      "price_cents": 499,
+      "spice": false
+    },
+    {
+      "id": "RASMALAI",
+      "name": "Rasmalai",
+      "category": "Desserts",
+      "price_cents": 499,
+      "spice": false
+    },
+    {
+      "id": "CHICKEN_NUGGETS_8_PIECES",
+      "name": "Chicken Nuggets (8 Pieces)",
+      "category": "Kids",
+      "price_cents": 799,
+      "spice": false
+    },
+    {
+      "id": "KIDS_CHICKEN_BURGER",
+      "name": "Kids Chicken Burger",
+      "category": "Kids",
+      "price_cents": 899,
+      "spice": false
+    },
+    {
+      "id": "KIDS_FRIES",
+      "name": "Kids Fries",
+      "category": "Kids",
+      "price_cents": 499,
+      "spice": false
+    }
+  ]
+}
