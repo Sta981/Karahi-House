@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { writeFileSync } from "node:fs";
 import next from "next";
+import { useDevelopmentCache } from "../next.config.mjs";
 import { chromium } from "playwright";
 import WebSocket, { WebSocketServer } from "ws";
 import { VoiceSession } from "../voice/session";
@@ -14,9 +15,12 @@ import { TurnRecorder } from "../voice/turn-recorder";
 import {runtimeInfo} from "../voice/runtime-info";
 import {endpointSettings} from "../voice/endpointing";
 import {DemoTicketService} from "../lib/demo-tickets";
+import { acquireDevelopmentCache } from "./lib/dev-cache.mjs";
 async function main() {
+  const releaseCache=acquireDevelopmentCache(process.cwd(),"browser");
   const build={commit:"d".repeat(40),dirty:false},runtime=runtimeInfo(build,"flux",endpointSettings("flux"),{provider:"fixture",model:"fixture-tone"},KEYTERMS.length,750,"adaptive");
   const report:Record<string,any>={kind:"browser-transport-fixtures-not-live-STT-or-TTS",browser:"Microsoft Edge",location:"Lahore laptop localhost",recordingsStored:false};
+  useDevelopmentCache("browser");
   const app=next({dev:true,hostname:"127.0.0.1",port:3101});await app.prepare();
   const handler=app.getRequestHandler(),server=createServer((req,res)=>{
     if(req.url==="/voice-health"){res.setHeader("Content-Type","application/json");res.end(JSON.stringify({ok:true,requiresAccessCode:false,build}));return;}
@@ -58,7 +62,8 @@ async function main() {
   const browser=await chromium.launch({channel:"msedge",headless:true});
   try{
     const context=await browser.newContext();const page=await context.newPage();
-    const failures:string[]=[];page.on("pageerror",error=>failures.push(error.message));
+    const failures:string[]=[],assetFailures:string[]=[];page.on("pageerror",error=>failures.push(error.message));
+    page.on("response",response=>{if(new URL(response.url()).pathname.startsWith("/_next/")&&response.status()>=400)assetFailures.push(`${response.status()} ${new URL(response.url()).pathname}`);});
     await page.addInitScript(()=>{
       const state:any={contexts:[],stops:0,tracks:[],sockets:[],playback:[],micGranted:false,socketBeforeMic:false};(window as any).__voiceFixture=state;
       const Socket=window.WebSocket;
@@ -72,7 +77,11 @@ async function main() {
         await new Promise(resolve=>setTimeout(resolve,350));state.micGranted=true;state.tracks.push(...dest.stream.getTracks());return dest.stream;
       };
     });
-    await page.goto("http://127.0.0.1:3101/voice");assert.equal(await page.getByLabel("Hosted demo access code").count(),0);await page.getByLabel("Recognition model").selectOption("flux");await page.getByRole("button",{name:"Start microphone"}).click();
+    await page.goto("http://127.0.0.1:3101/voice");assert.equal(await page.getByLabel("Hosted demo access code").count(),0);await page.getByLabel("Recognition model").selectOption("flux");
+    assert.deepEqual(assetFailures,[],"The page must load its CSS and JavaScript, not just return HTTP 200 for HTML");
+    assert.match(await page.locator("body").evaluate(body=>getComputedStyle(body).fontFamily),/Segoe UI|sans-serif/);
+    assert.equal(await page.getByRole("button",{name:"Start microphone"}).isEnabled(),true);report.pageAssetsAndHydration=true;
+    await page.getByRole("button",{name:"Start microphone"}).click();
     try{await page.getByRole("status").filter({hasText:"Listening"}).waitFor({timeout:30000});}catch(error){report.setupStatus=await page.getByRole("status").innerText();report.pageErrors=failures;throw error;}
     assert.equal(await page.evaluate(()=>(window as any).__voiceFixture.socketBeforeMic),false);report.microphoneBeforeStt=true;report.localPasswordHidden=true;
     assert.ok((await page.getByTestId("voice-build").innerText()).includes(build.commit));assert.match(await page.getByTestId("voice-runtime").innerText(),/flux-general-en.*750 ms.*fixture-tone/);report.runtimeProvenanceVisible=true;
@@ -115,9 +124,10 @@ async function main() {
     await page.evaluate(()=>(window as any).__voiceFixture.sockets.at(-1).send(JSON.stringify({type:"fixture_script_order"})));
     await page.getByTestId("demo-ticket").waitFor({timeout:15000});assert.match(await page.getByTestId("demo-ticket").innerText(),/pending_acceptance/);assert.match(await page.getByTestId("demo-ticket").innerText(),/email is not configured/);
     const ticketDownload=page.waitForEvent("download");await page.getByRole("button",{name:"Download redacted DEMO ticket"}).click();const ticketFile=await ticketDownload,ticketStream=await ticketFile.createReadStream(),ticketChunks=[];for await(const chunk of ticketStream!)ticketChunks.push(chunk);const downloaded=JSON.parse(Buffer.concat(ticketChunks).toString("utf8"));assert.equal(downloaded.label,"DEMO");assert.equal(downloaded.status,"pending_acceptance");assert.equal(downloaded.sms.sent,false);assert.equal(downloaded.sms.status,"simulated");assert.equal(downloaded.subtotalCents,450);report.confirmedDemoTicketAndDownload=true;
+    assert.deepEqual(assetFailures,[],"No page asset may fail during the browser walkthrough");
     report.ok=true;report.turns=turns;report.bargeIns=bargeIns;report.stoppedPlaybackSources=after;report.micReleased=released;report.latencyTableFixtureOnly=table;
   }catch(error){report.ok=false;report.failure=error instanceof Error?error.message:"Browser failed";}
-  finally{await browser.close();tickets.clear();for(const ws of wss.clients)ws.terminate();wss.close();await new Promise<void>(resolve=>server.close(()=>resolve()));await app.close();writeFileSync("eval/results/voice-browser.json",JSON.stringify(report,null,2)+"\n");console.log(JSON.stringify(report,null,2));}
+  finally{await browser.close();tickets.clear();for(const ws of wss.clients)ws.terminate();wss.close();await new Promise<void>(resolve=>server.close(()=>resolve()));await app.close();releaseCache();writeFileSync("eval/results/voice-browser.json",JSON.stringify(report,null,2)+"\n");console.log(JSON.stringify(report,null,2));}
   if(!report.ok)process.exitCode=1;
 }
 void main().then(()=>process.exit(process.exitCode ?? 0));

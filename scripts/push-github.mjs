@@ -51,7 +51,7 @@ if (git(directory, ["branch", "--show-current"]).trim() !== "main") throw Error(
 git(directory, ["config", "core.autocrlf", "false"]);
 git(directory, ["config", "user.name", git(root, ["config", "user.name"]).trim()]);
 git(directory, ["config", "user.email", git(root, ["config", "user.email"]).trim()]);
-writeFileSync(path.join(directory, ".git/info/exclude"), ".*\nnode_modules/\n*.tsbuildinfo\n");
+writeFileSync(path.join(directory, ".git/info/exclude"), ".*\nnode_modules/\n*.tsbuildinfo\nnext-env.d.ts\n");
 writeFileSync(path.join(directory, ".git/info/attributes"), "*.pcm binary\n");
 const refs = git(directory, ["-c", "credential.interactive=never", "ls-remote", "origin"]);
 if (!initialized && refs.trim()) throw Error("Remote already contains history; refusing an unreviewed initial publication");

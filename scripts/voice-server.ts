@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import { performance } from "node:perf_hooks";
 import { randomUUID, timingSafeEqual } from "node:crypto";
 import next from "next";
+import { useDevelopmentCache } from "../next.config.mjs";
 import WebSocket, { WebSocketServer } from "ws";
 import { makeTts } from "../voice/tts";
 import { openStt, KEYTERMS,stateKeyterms } from "../voice/stt";
@@ -21,12 +22,14 @@ import { qualifiedBargeIn } from "../voice/barge-in";
 import { execFileSync } from "node:child_process";
 import { runtimeInfo,type VoiceRuntimeInfo } from "../voice/runtime-info";
 import {demoTickets} from "../lib/demo-tickets";
+import { acquireDevelopmentCache } from "./lib/dev-cache.mjs";
 
 async function main() {
 const bootStarted=performance.now();
 const build=(()=>{try{return {commit:execFileSync("git",["rev-parse","HEAD"],{encoding:"utf8",stdio:["ignore","pipe","ignore"]}).trim(),dirty:!!execFileSync("git",["status","--porcelain"],{encoding:"utf8",stdio:["ignore","pipe","ignore"]}).trim()};}catch{return {commit:"unknown",dirty:true};}})();
 if (existsSync(".env.local")) loadEnvFile(".env.local");
 const port = Number(process.env.PORT || 3000);
+if (!Number.isInteger(port) || port < 1 || port > 65535) throw Error("Invalid server port");
 const locationLabel=process.env.VOICE_DEPLOYMENT_LABEL|| (process.env.RENDER==="true"?"US-hosted":"Lahore local");
 if(!["Lahore local","US-hosted"].includes(locationLabel))throw Error("Unknown deployment label");
 const host = process.env.VOICE_BIND_ADDRESS || "127.0.0.1";
@@ -36,7 +39,10 @@ if((!isLoopback(host)||forceToken)&&configuredToken.length<24)console.warn("WARN
 demoAccessCode(host,configuredToken,forceToken);
 if(process.env.VOICE_PERSIST_LOGS==="true")throw Error("Server transcript persistence is disabled. Use browser-local CSV exports.");
 const logToDisk=false;
-const app = next({ dev: process.env.NODE_ENV !== "production", hostname: host, port });
+const dev = process.env.NODE_ENV !== "production";
+const releaseCache = dev ? acquireDevelopmentCache(process.cwd(), "voice") : () => {};
+if (dev) useDevelopmentCache("voice");
+const app = next({ dev, hostname: host, port });
 await app.prepare();
 const nextReadyMs=performance.now()-bootStarted;
 const handle = app.getRequestHandler();
@@ -164,8 +170,21 @@ wss.on("connection", (ws,request) => {
   ws.on("error", stop);
   ws.on("close", code => { clearTimeout(authLimit);clearTimeout(limit); stop(); console.log(JSON.stringify({ event: "voice_closed", closeCode:code, audioFrames: frames, audioMinutes: frames * .08 / 60, recordingsStored: false })); });
 });
-server.listen(port, host, () => console.log(`Streaming demo: http://${host}:${port}/voice (TTS=${ttsName}; LLM FAQ ${process.env.VOICE_FAQ_ENABLED === "true" ? "enabled" : "off"}; no recording)`));
-function shutdown() { for (const client of wss.clients) client.close(); tts.close(); server.close(); void app.close().then(() => process.exit()); }
+server.on("error", error => {
+  const busy = (error as NodeJS.ErrnoException).code === "EADDRINUSE";
+  console.error(busy ? `Port ${port} is already in use. Open the existing demo or stop it before restarting; no alternate port was started.` : "Voice server could not listen; check the port and configuration.");
+  for (const client of wss.clients) client.close();
+  wss.close(); tts.close();
+  void app.close().finally(() => { releaseCache(); process.exit(1); });
+});
+server.listen(port, host, () => {
+  console.log(`${port} -> ${build.commit}${build.dirty ? " (uncommitted changes)" : ""}`);
+  console.log(`Streaming demo: http://${host}:${port}/voice (TTS=${ttsName}; LLM FAQ ${process.env.VOICE_FAQ_ENABLED === "true" ? "enabled" : "off"}; no recording${dev ? "; cache=.next-dev-voice" : ""})`);
+});
+function shutdown() { for (const client of wss.clients) client.close(); tts.close(); server.close(); void app.close().then(() => { releaseCache(); process.exit(); }); }
 process.on("SIGINT", shutdown); process.on("SIGTERM", shutdown);
 }
-void main().catch(() => { console.error("Voice server could not start; check the port and configuration."); process.exitCode = 1; });
+void main().catch(error => {
+  console.error(error?.code === "DEV_CACHE_BUSY" || error?.code === "DEV_CLEAN_BUSY" ? error.message : "Voice server could not start; check the port and configuration.");
+  process.exitCode = 1;
+});

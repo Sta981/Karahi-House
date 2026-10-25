@@ -19,6 +19,8 @@ npm run dev:voice
 
 Open <http://127.0.0.1:3000/voice> in Chrome/Edge and allow the microphone. Select Flux English, Nova-3 multilingual or Nova-3 Indian English; no accent-model winner is established. Use headphones. One session, ten-minute cap. `npm run dev` serves text/legacy browser speech; streaming WebSocket voice requires `dev:voice`.
 
+For the voice demo, **`npm run dev:voice` is the only startup command**: one server, port **3000** by default, one cache **`.next-dev-voice`**. Startup prints `3000 -> <full commit hash>` with a dirty marker for uncommitted changes. It does not pick an alternate port. A second invocation exits without touching the running cache. To reset generated development caches, stop the server with **Ctrl+C**, run **`npm run clean`**, then start `npm run dev:voice` again. Cleanup removes only the project's top-level `.next-dev-*` directories and refuses while a managed development server is running. Production `.next`, credentials and private data remain in place.
+
 Pipeline: browser mic/AudioWorklet → WebSocket → Deepgram → local order engine → **Aura-2 Thalia** → browser playback. Vapi/Twilio are unused. Kokoro is an explicit alternative; measured laptop CPU performance was too slow for the target. FAQ LLM defaults off; keys alone do not enable it. Keep server credentials out of chat/source and `NEXT_PUBLIC_` variables.
 
 ## After read-back confirmation
@@ -68,6 +70,7 @@ npm run test:live
 npm run test:voice
 npm run test:notifications
 npm run test:demo-script
+npm run test:next-cache
 npm run test:github
 npm run test:voice:browser
 npm run typecheck
@@ -75,7 +78,7 @@ npm run check:privacy
 npm run build
 ```
 
-Current validation passes 163 selected checks: 53 engine, 42 live/pattern, 55 voice, 4 publication, 8 notification and 1 scripted walkthrough. Notification checks use mock transport. The full local development checkout also supports `npm run test:engine`; some baseline-integrity checks need local evaluation artifacts intentionally excluded from the public snapshot. Development tests are not held-out or accent accuracy. Held-out files/grading rules are excluded from this checklist. Burned cases remain regression-only. The Groq segmenter comparison was skipped; local parsing remains default.
+Current validation passes 170 selected checks: 53 engine, 42 live/pattern, 55 voice, 4 publication, 8 notification, 1 scripted walkthrough and 7 development-cache checks. Notification checks use mock transport. The full local development checkout also supports `npm run test:engine`; some baseline-integrity checks need local evaluation artifacts intentionally excluded from the public snapshot. Development tests are not held-out or accent accuracy. Held-out files/grading rules are excluded from this checklist. Burned cases remain regression-only. The Groq segmenter comparison was skipped; local parsing remains default.
 
 Use the [thirty-turn real-mic script](docs/real-mic-script.md) and [blank sheet](docs/real-mic-results-template.csv) for all three STT configs. Export before resetting. Enter intended words for mishearings; aliases need manual review. `npm run voice:analyze -- 'path-to-export.csv' --require-commit FULL_COMMIT_HASH` excludes other/dirty builds. Explicit provider benchmarks consume credits; offline checks above do not.
 
@@ -85,4 +88,4 @@ Use the [thirty-turn real-mic script](docs/real-mic-script.md) and [blank sheet]
 
 The server binds to **127.0.0.1**, with no local password. Public/tunnel access requires `VOICE_DEMO_ACCESS_TOKEN`; set `VOICE_REQUIRE_ACCESS_TOKEN` before a tunnel hiding forwarding metadata. Public binding without a valid token refuses startup. No public deployment or US latency measurement exists; Render remains on hold.
 
-GitHub gets a filtered snapshot through `npm run github:push`: hidden files, secrets, private CSVs/replays, evaluation outputs and held-out material are excluded. See [publication workflow](docs/github-workflow.md). Do not build or run another dev instance against the same `.next` as an active call; use an isolated source copy. Audio interfaces can be replaced by Vapi, LiveKit or Pipecat later.
+GitHub gets a filtered snapshot through `npm run github:push`: hidden files, secrets, private CSVs/replays, evaluation outputs and held-out material are excluded. See [publication workflow](docs/github-workflow.md). Production builds use `.next`; voice uses `.next-dev-voice`; browser fixtures and ordinary Next dev use their own `.next-dev-browser`/`.next-dev-web`. A build or fixture run therefore does not delete the voice demo's CSS/JavaScript. All root `.next*` paths and the generated `next-env.d.ts` are ignored; generated cache/type files do not belong in Git. Only one voice demo runs at a time. If `EADDRINUSE` appears, use the existing demo or stop that instance before restarting it. Audio interfaces can be replaced by Vapi, LiveKit or Pipecat later.
