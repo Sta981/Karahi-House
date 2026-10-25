@@ -7,6 +7,7 @@ import { hasCorrectionMarkers, isRemovalCommand, planLocalCorrection, segmentLoc
 import { CartOperation, recordCartOperations } from "./cart-journal";
 import { similarity } from "./phonetic";
 import { speechTokens } from "./speech";
+import { menuBrowsing, CATEGORY_LIST, MENU_FALLBACK, type BrowseState } from "./menu-browsing";
 
 export interface CartLine {
   itemId: string; name: string; qty: number; size?: "Half" | "Full";
@@ -28,6 +29,7 @@ export interface DialogState {
   answerConfirmation?:{kind:"size"|"spice"|"yesno";value:string};
   checkoutRequested?:boolean;spiceAsked?:boolean;
   removalConfirmation?:{index:number;itemId:string;qty:number;target:string};
+  browsing?:BrowseState; menuQuestionMisses?:number;
 }
 export interface CallSummary {
   kind: "order" | "inquiry" | "catering"; status: "pending_acceptance" | "needs_review";
@@ -42,7 +44,7 @@ function constrainedAnswer(text:string,kind:"size"|"spice"|"yesno",choices:strin
   const tokens=speechTokens(text).filter(word=>!["the","a","one","please","size","portion","make","it","that","i","want","with"].includes(word));
   if(!tokens.length||tokens.length>4)return {};
   const heard=tokens.join(" ");
-  const known:Record<string,string>=kind==="size"?{half:"half",haf:"half",haaf:"half",have:"half",full:"full",ful:"full",fool:"full"}:
+  const known:Record<string,string>=kind==="size"?{half:"half",haf:"half",haaf:"half",have:"half",bot:"half",full:"full",ful:"full",fool:"full"}:
     kind==="yesno"?{yes:"yes",yeah:"yes",yep:"yes",ya:"yes",yeas:"yes",haan:"yes",ji:"yes",correct:"yes",no:"no",nope:"no",know:"no",nah:"no",nahi:"no"}:
     {"no spice":"No Spice","not spicy":"No Spice",mild:"Mild Spice","mild spice":"Mild Spice",medium:"Medium Spice","medium spice":"Medium Spice",spicy:"Spicy",spicey:"Spicy","extra spicy":"Extra Spicy"};
   const exact=known[heard]??choices.find(choice=>choice.toLowerCase()===heard);
@@ -69,10 +71,10 @@ export function buildSummary(state: DialogState, kind: CallSummary["kind"], hint
     subtotal: subtotalCents / 100, subtotalCents, notes: state.notes, transcriptHint: hint };
 }
 export function requiresStaffReview(text: string): boolean {
-  return /\b(?:allerg(?:y|ies|ic|en)|peanuts?|nuts?|gluten|dairy|shellfish|human|real person|manager|staff|operator|speak to (?:a |the )?person)\b/i.test(text);
+  return /\b(?:allerg(?:y|ies|ic|ens?)|(?:speak|talk|transfer|connect)(?: me)? (?:to|with) (?:a |the )?(?:person|human|manager|staff|operator)|real person|human agent|want (?:a |the )?(?:person|manager|staff))\b/i.test(text);
 }
 const YES = /^(?:yes|yeah|yep|correct|haan|han|ji|okay|ok|sure)(?=$|[\s,.!])/i;
-const DONE = /\b(?:that'?s (?:all|it)|that (?:will|would) be all|nothing else|checkout|check out|bas|khatam|i'?m done)\b/i;
+const DONE = /\b(?:that'?s (?:all|it)|that (?:will|would) be all|nothing else|checkout|check out|bas|khatam|i'?m done|end (?:the |this )?call|goodbye|bye)\b/i;
 const spiceOptions = MODIFIERS.spice_level.options;
 export const ORDER_SPICE_QUESTION=`Spice for the order: ${spiceOptions.join(", ")}?`;
 function spiceFrom(text: string): string | undefined {
@@ -301,7 +303,7 @@ function recognitionTurn(s: DialogState, text: string, analysis: ReturnType<type
   // A new clear side can be accepted while an unrelated identity is pending.
   const independent=analysis.matches.filter(match=>!issue.candidates.some(candidate=>candidate.itemId===match.itemId));
   if(independent.length){processMatches(s,independent);pending.attempts=0;return {reply:issue.question,state:s,matches:independent};}
-  if (pending.attempts >= 2) {
+  if (pending.attempts >= 3) {
     s.needsReview = true;
     s.notes.push(`Needs staff review: ${pending.issues.map((entry) => entry.heard).join("; ")}. Deferred items: ${pending.matches.map((match) => `${match.qty} ${match.name}`).join("; ") || "none"}.`);
     s.recognition = undefined;
@@ -332,6 +334,15 @@ function runTurnCore(state: DialogState, rawText: string, providedAnalysis?: Rec
     s.notes.push(`Staff review required: ${redactPhoneNumbers(text)}`);
     return reply("The team needs to review that before any order is accepted. What callback number should they use?");
   }
+  const browsing=menuBrowsing(text,s.browsing??(s.lastReply?.includes("Menu categories:")?{key:"menu",offset:0}:undefined));
+  if(browsing){
+    s.browsing=browsing.browsing;
+    s.menuQuestionMisses=browsing.garbled?(s.menuQuestionMisses??0)+1:0;
+    // An unclear menu question is an informational recovery, never a ticket
+    // disposition. Even repeated browsing failures must not flag an order.
+    return reply(browsing.reply);
+  }
+  s.browsing=undefined;
   const price=/\b(?:price|prices|cost|total|subtotal|bill|how much)\b/i.test(text)?priceTurn(s,text,providedAnalysis??analyzeUtterance(text)):undefined;
   if(price)return price;
   if(s.removalConfirmation){
@@ -345,6 +356,13 @@ function runTurnCore(state: DialogState, rawText: string, providedAnalysis?: Rec
   }
   const done=DONE.test(text)||/^(?:no|nope|nah|nahi)[.!]?$/i.test(text)&&s.phase==="open"&&!!s.cart.length&&!s.recognition&&!s.pendingCorrection;
   if(done)s.checkoutRequested=true;
+  if(done&&!s.cart.length&&!s.pending&&!s.recognition){s.phase="closed";return reply("Goodbye! Thanks for calling Karahi House.",[],{endCall:true});}
+  if(done&&s.phase==="ask_name")return reply("What name for pickup?");
+  if(done&&s.phase==="confirm")return reply("Is the order I read back correct?");
+  // Protein repairs apply only to a pending protein choice, not food orders.
+  if(s.recognition&&/^(?:got|got please)[.!]?$/i.test(text)&&s.recognition.issues[0]?.candidates.some(candidate=>candidate.protein==="Goat")){
+    text="goat";providedAnalysis={matches:[],issues:[]};
+  }
   // Answer matching stays inside the question's finite choice set. A new food
   // request is not coerced into a size or spice answer.
   const yesnoAnswer=constrainedAnswer(text,"yesno",["yes","no"]),yesno=yesnoAnswer.value;
@@ -531,12 +549,19 @@ export function runTurn(state:DialogState,text:string,analysis?:RecognitionAnaly
     if(removed.length)result.reply=`Removed ${removed.join(" and ")}. ${pendingQuestion(result.state)??"Anything else?"}`;
   }
   const progress=JSON.stringify([state.cart,state.pending,state.orderSpice,state.phase,state.recognition?.issues.map(issue=>issue.heard),state.pendingCorrection?.segment])!==JSON.stringify([result.state.cart,result.state.pending,result.state.orderSpice,result.state.phase,result.state.recognition?.issues.map(issue=>issue.heard),result.state.pendingCorrection?.segment]);
-  const miss=!progress&&!!pendingQuestion(result.state)&&!/^\b(?:price|cost|total|subtotal|bill|how much)\b/i.test(text);
+  const browsing=!!menuBrowsing(text,state.browsing??(state.lastReply?.includes("Menu categories:")?{key:"menu",offset:0}:undefined));
+  const miss=!browsing&&!progress&&(!!pendingQuestion(result.state)||!!result.needsLLM)&&!/^\b(?:price|cost|total|subtotal|bill|how much)\b/i.test(text);
   result.state.recoveryMisses=miss?(state.recoveryMisses??0)+1:0;
-  if(result.state.recoveryMisses>=2&&!result.reply.includes("Menu categories:"))result.reply=`Menu categories: ${[...new Set(MENU.map(item=>item.category))].join(", ")}. ${pendingQuestion(result.state)??"Which category would you like?"}`;
+  if(result.state.recoveryMisses>=2&&!result.reply.includes("Menu categories:"))result.reply=`${CATEGORY_LIST} Which category would you like?`;
+  if(result.state.recoveryMisses>=3&&!browsing){result.state.needsReview=true;result.reply="I couldn't resolve that. The team can help; what callback number should they use?";}
   if(added.length&&!addedLines.every(line=>result.reply.includes(`${line.qty} ${line.name}`)))result.reply=`Added ${added.join(" and ")}. ${result.reply}`;
-  else if(!added.length&&(!!result.state.recognition||/isn't on|don't have|not on|ambiguous/i.test(result.reply)))result.reply=`No items added. ${result.reply}`;
-  if(result.reply===state.lastReply)result.reply=`Let me clarify. ${result.reply}`;
+  if(result.reply===state.lastReply){
+    if(browsing)result.reply=`${CATEGORY_LIST} Which category would you like next?`;
+    else if(result.state.pending)result.reply=`For ${getItem(result.state.pending.itemId)!.name}, please choose Half or Full.`;
+    else if(result.state.phase==="ask_spice")result.reply=`Please choose ${spiceOptions.join(", ")}.`;
+    else result.reply=`${CATEGORY_LIST} Which category would you like?`;
+    if(result.reply===state.lastReply)result.reply="Could you say that again? You can order or ask about the menu.";
+  }
   result.state.lastReply=result.reply;
   return result;
 }

@@ -21,11 +21,13 @@ test("static templates load without synthesis; tampered/missing assets fail clos
  const pcm=Buffer.from(readFileSync(path.join("public/voice-audio",entry.file)));pcm[0]^=1;writeFileSync(path.join(directory,entry.file),pcm);writeFileSync(path.join(directory,"manifest.json"),JSON.stringify(manifest));
  await assert.rejects(()=>new FixedAudioTts(base,true,false,directory).warm(),/Invalid static speech hash/);assert.equal(requests,0);
 });
-test("instant acknowledgement overlaps dynamic TTS and interruption cancels it",async()=>{
+test("dynamic synthesis cancels without an unsolicited acknowledgement",async()=>{
  let cancelled=false;const base:Tts={name:"aura-2",warm:async()=>{},close(){},async *speak(_text,signal){await new Promise<void>(resolve=>signal.addEventListener("abort",()=>{cancelled=true;resolve();},{once:true}));signal.throwIfAborted();}};
  const cache=new FixedAudioTts(base,true,true);await cache.warm();const signal=new AbortController(),stream=cache.speak("A dynamic answer for a test.",signal.signal);
- assert.ok(cache.plan("A dynamic answer for a test.").acknowledgementBytes>0);assert.ok((await stream.next()).value?.length);signal.abort();await stream.return(undefined);assert.equal(cancelled,true);cache.close();
+ assert.equal(cache.plan("A dynamic answer for a test.").acknowledgementBytes,0);
+ const pending=stream.next();setTimeout(()=>signal.abort(),20);await assert.rejects(()=>pending);assert.equal(cancelled,true);cache.close();
 });
+
 test("fragment caching sends at most one nonempty dynamic request per reply",async()=>{
  const calls:string[]=[];const base:Tts={name:"aura-2",warm:async()=>{},close(){},async *speak(text){calls.push(text);yield Buffer.from([0,0]);}};
  const cache=new FixedAudioTts(base,true,false);await cache.warm();
@@ -33,8 +35,8 @@ test("fragment caching sends at most one nonempty dynamic request per reply",asy
    const before=calls.length;for await(const _chunk of cache.speak(reply,new AbortController().signal)){}
    assert.ok(calls.length-before<=1);assert.ok(calls.slice(before).every(text=>/[a-z0-9]/i.test(text)));
  }
- assert.equal(cache.plan("No items added. Did you mean a different dish?").firstByteCached,true);
- assert.equal(cache.plan("Half or Full for Goat White Karahi?").dynamicCharacters,"Goat White Karahi?".length);
+ assert.equal(cache.plan("Did you mean a different dish?").acknowledgementBytes,0);
+ assert.equal(cache.plan("Half or Full for Goat White Karahi?").dynamicCharacters,0);
  cache.close();
 });
 test("mishearing exports require user intent, redact callbacks and never imply an approved alias",()=>{

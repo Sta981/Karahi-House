@@ -634,6 +634,15 @@ const RANK_LABELS=new Map(MENU.map(item=>[item,[item.name,...item.aliases].map(l
   return {joined:preparePhonetic(words.join("")),words:words.map(preparePhonetic)};
 })]));
 export function closestMenuItems(text: string, count = 3, pool: MenuItem[] = MENU): MenuItem[] {
+  // Category evidence precedes phonetic retrieval. Never offer a bread as a
+  // dessert or a drink as a curry just because its syllables happen to fit.
+  if(pool===MENU){
+    const category=/\b(?:sweet|dessert|mithai|ice cream)\b/i.test(text)?["Desserts"]:
+      /\b(?:drink|beverage|juice|lassi)\b/i.test(text)?["Beverages"]:
+      /\b(?:naan|bread|roti)\b/i.test(text)?["Naan"]:
+      /\b(?:vindaloo|rogan josh|jalfrezi|curry|korma)\b/i.test(text)?["Handi Curry","Tikka Masala"]:undefined;
+    if(category)pool=MENU.filter(item=>category.includes(item.category));
+  }
   const words=tokenize(text).filter(token=>!STOPWORDS.has(token)&&!(token in NUM_WORDS)&&!PORTION_WORDS[token]);
   const protein=extractVariantHints(text).protein;
   const distinctive=words.filter(word=>!PROTEIN_WORDS[word]&&!["fish","shrimp","mutton"].includes(word));

@@ -8,7 +8,7 @@ import { replayCartOperations } from "../lib/cart-journal";
 function call(...turns:string[]){let state=newState(),result;for(const turn of turns){result=runTurn(state,turn);state=result.state;}return result!;}
 test("unresolved compounds cannot extract one-word sides or desserts",()=>{
  for(const phrase of ["lamb creamy rice","beef special raita","chicken deluxe kheer","goat white papadam"]){
-  const result=call(phrase);assert.equal(result.state.cart.length,0,phrase);assert.ok(result.state.recognition,phrase);assert.match(result.reply,/No items added/);
+  const result=call(phrase);assert.equal(result.state.cart.length,0,phrase);assert.ok(result.state.recognition,phrase);assert.doesNotMatch(result.reply,/No items added/);
  }
 });
 test("one unavailable clause adds nothing; clear comma/conjunction clauses are read back",()=>{

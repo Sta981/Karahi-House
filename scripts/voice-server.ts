@@ -54,7 +54,7 @@ const server = createServer((req, res) => {
       keyterms:KEYTERMS.length,keyPresent:!!process.env.DEEPGRAM_API_KEY?.trim(),faqEnabled:process.env.VOICE_FAQ_ENABLED==="true",
       recordingsStored:false,transcriptsPersisted:false,fixedAudio:tts.stats(),startup:{nextReadyMs,readyMs},
       requiresAccessCode:publicRequest,localLogs:logToDisk,endpointProfile:process.env.VOICE_ENDPOINT_PROFILE||"baseline",
-      endpointMode:process.env.VOICE_ENDPOINT_MODE||"adaptive",adaptive:{completeWaitMs:COMPLETE_WAIT,incompleteMs:DEFAULT_ADAPTIVE.incompleteMs,uncertainMs:DEFAULT_ADAPTIVE.uncertainMs},speculationEnabled:false
+      endpointMode:process.env.VOICE_ENDPOINT_MODE||"adaptive",adaptive:{completeWaitMs:{...COMPLETE_WAIT,...(process.env.VOICE_ADAPTIVE_COMPLETE_MS?Object.fromEntries(Object.keys(COMPLETE_WAIT).map(key=>[key,Number(process.env.VOICE_ADAPTIVE_COMPLETE_MS)])): {})},incompleteMs:DEFAULT_ADAPTIVE.incompleteMs,uncertainMs:DEFAULT_ADAPTIVE.uncertainMs,answerMs:DEFAULT_ADAPTIVE.answerMs},speculationEnabled:false
     }));return;
   }
   void handle(req, res);
@@ -72,6 +72,7 @@ wss.on("connection", (ws,request) => {
   const authLimit=setTimeout(()=>{if(accessCode)ws.close(1008,"Authentication required");},10000);
   if(wss.clients.size>1){ws.send(JSON.stringify({type:"error",code:"voice_busy",message:voiceErrorMessage("voice_busy")}));ws.close(1013,"Another call is active");return;}
   let stt: SttStream | undefined, session: VoiceSession | undefined, guard: ContinuationGuard | undefined, starting = false, active = false, frames = 0;
+  const endpointProbes:ContinuationGuard[]=[];
   const meta={callId:randomUUID(),location:locationLabel,model:"",profile:""};
   const publish=(row:VoiceLogRow)=>{
     if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:"turn_log",row}));
@@ -94,14 +95,14 @@ wss.on("connection", (ws,request) => {
     if(event.type!=="tts_telemetry")recorder.event(event);
     if(event.type==="reply"&&process.env.VOICE_STATE_KEYTERMS!=="false")stt?.configureKeyterms?.(stateKeyterms(session?.recognitionHints()??[]));
   };
-  const stop = () => { active = false; stt?.close(); stt = undefined; guard?.close(); guard = undefined; session?.close(); session = undefined;recorder.end(); };
+  const stop = () => { active = false; stt?.close(); stt = undefined; guard?.close(); guard = undefined;endpointProbes.splice(0).forEach(probe=>probe.close()); session?.close(); session = undefined;recorder.end(); };
   const limit = setTimeout(() => { stop(); ws.close(1000, "Ten minute demo limit"); }, 600000);
   ws.on("message", async (bytes, binary) => {
     if (binary) {
       if (!active || !stt || bytes instanceof Array) return;
       const pcm = Buffer.from(bytes as Buffer);
       if (pcm.length !== 2560) { emit({ type: "error", code: "invalid_audio_frame" }); return; }
-      frames++; guard?.audio(pcm); stt.send(pcm); return;
+      frames++; guard?.audio(pcm);endpointProbes.forEach(probe=>probe.audio(pcm)); stt.send(pcm); return;
     }
     let message: Record<string, any>;
     try { message = JSON.parse(bytes.toString()); } catch { return; }
@@ -130,12 +131,17 @@ wss.on("connection", (ws,request) => {
       const wait=process.env.VOICE_ENDPOINT_MODE==="fixed"?1600:adaptive;
       const profile = endpointSettings(model,process.env.VOICE_ENDPOINT_PROFILE||"baseline");
       meta.model=model;meta.profile=`${profile.id}+${typeof wait==="number"?"fixed1600":`adaptive${completeMs}`}`;
-      guard = new ContinuationGuard(wait,event=>void session?.turn(event.text,event.audioEndSeconds,event.endpointReason,event.continuationOf?{of:event.continuationOf,fragment:event.fragment??""}:undefined),{windowMs:2200,onResume:()=>session?.interrupt({source:"continuation"})});
+      guard = new ContinuationGuard(wait,event=>void session?.turn(event.text,event.audioEndSeconds,event.endpointReason,event.continuationOf?{of:event.continuationOf,fragment:event.fragment??""}:undefined),{windowMs:2200,onResume:()=>session?.interrupt({source:"continuation"})},()=>session?.endpointAnswers()??[]);
+      // Optional read-only paired guard study: identical PCM/provider finals,
+      // no engine, cart, synthesis or transcript text in diagnostic events.
+      if(process.env.VOICE_ENDPOINT_DIAGNOSTICS==="true"&&model==="nova-3-en-IN")for(const completeMs of [700,800,900,1600]){
+        endpointProbes.push(new ContinuationGuard({...DEFAULT_ADAPTIVE,completeMs},event=>emit({type:"endpoint_probe",completeMs,at:performance.now(),reason:event.endpointReason}),{windowMs:2200,onResume:()=>emit({type:"endpoint_probe_resume",completeMs,at:performance.now()})}));
+      }
       stt = await openStt(model, event => {
         // Provider VAD alone cannot distinguish the agent's echo from a caller.
         // The browser's duration/energy/reference-qualified VAD owns barge-in.
         if (event.type === "speech") { /* diagnostic only; no blind cancellation */ }
-        else if (event.type === "final") { guard?.final(event); }
+        else if (event.type === "final") { guard?.final(event);endpointProbes.forEach(probe=>probe.final(event)); }
         else if (event.type === "partial"||event.type==="configuration") { emit(event); }
         else { emit(event); stop(); ws.close(1011, "STT failed"); }
       },profile);

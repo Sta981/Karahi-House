@@ -1,0 +1,70 @@
+{
+  "kind": "synthetic-demo-order",
+  "turns": [
+    {
+      "caller": "one full chicken lahori karahi extra spicy notes no green onions",
+      "reply": "Added 1 Chicken Lahori Karahi. Anything else?"
+    },
+    {
+      "caller": "two garlic naan mild spice",
+      "reply": "Added 2 Garlic Naan Bread. Anything else?"
+    },
+    {
+      "caller": "one mango lassi",
+      "reply": "Added 1 Mango Lassi. Anything else?"
+    },
+    {
+      "caller": "checkout",
+      "reply": "What name for pickup?"
+    },
+    {
+      "caller": "Demo Guest",
+      "reply": "Please check: 1 Chicken Lahori Karahi, Full, Extra Spicy, notes: no green onions; 2 Garlic Naan Bread, Mild Spice; 1 Mango Lassi. Subtotal $48.48; tax is not configured. Pickup, payment at pickup. Is that correct?"
+    },
+    {
+      "caller": "yes",
+      "reply": "Your demo request is pending staff acceptance. It has not been accepted by the restaurant."
+    }
+  ],
+  "ticket": {
+    "kind": "order",
+    "status": "pending_acceptance",
+    "demo": true,
+    "menuApproved": true,
+    "customerName": "Demo Guest",
+    "orderType": "pickup",
+    "items": [
+      {
+        "name": "Chicken Lahori Karahi",
+        "variant": "Full",
+        "qty": 1,
+        "spice": "Extra Spicy",
+        "notes": [
+          "no green onions"
+        ],
+        "lineTotal": 36,
+        "lineTotalCents": 3600,
+        "sizeVerified": true
+      },
+      {
+        "name": "Garlic Naan Bread",
+        "qty": 2,
+        "spice": "Mild Spice",
+        "notes": [],
+        "lineTotal": 7.98,
+        "lineTotalCents": 798
+      },
+      {
+        "name": "Mango Lassi",
+        "qty": 1,
+        "notes": [],
+        "lineTotal": 4.5,
+        "lineTotalCents": 450
+      }
+    ],
+    "subtotal": 48.48,
+    "subtotalCents": 4848,
+    "notes": [],
+    "transcriptHint": "Caller confirmed the read-back; staff acceptance pending."
+  }
+}

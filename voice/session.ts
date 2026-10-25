@@ -14,6 +14,12 @@ export class VoiceSession {
   private closed = false;
   private checkpoint?:{before:DialogState;text:string;operations:CartOperation[];committed:boolean;generation:number};
   constructor(private tts: Tts, private emit: Emit, private faqEnabled = false) {}
+  endpointAnswers():string[]{
+    if(this.state.pending)return ["Half","Full","have","haf","fool","bot"];
+    if(this.state.phase==="ask_spice")return [...MODIFIERS.spice_level.options,"mild","medium","hot"];
+    if(this.state.phase==="confirm"||this.state.removalConfirmation||this.state.answerConfirmation||this.state.browsing||/Anything else\?$/.test(this.state.lastReply??""))return ["yes","no","yeah","nope","that's all","that's it"];
+    return [];
+  }
   recognitionHints():string[]{
     if(this.state.pendingCorrection)return ["no",...this.state.cart.map(line=>getItem(line.itemId)!.name)];
     if(this.state.recognition)return ["yes","no",...this.state.recognition.issues[0].candidates.map(candidate=>getItem(candidate.itemId)!.name)];
@@ -29,7 +35,7 @@ export class VoiceSession {
   }
   async greet() { await this.reply(GREETING, 0, performance.now()); }
   async turn(text: string, audioEndSeconds: number | null = null, endpointReason = "manual_final",continuation?:{of:string;fragment:string}) {
-    if (this.closed || !text.trim() || text.length > 1000) return;
+    if (this.closed || this.state.phase==="closed" || !text.trim() || text.length > 1000) return;
     let supersedesGeneration:number|undefined;
     if(continuation){
       const previous=this.checkpoint;
@@ -55,6 +61,7 @@ export class VoiceSession {
     const usedCpu=process.cpuUsage(cpu);
     this.emit({ type: "reply", text: result.reply, cart: this.state.cart, generation, usedLLM: result.usedLLM, engineMs,engineProfile:{...engineProfile,cpuMs:(usedCpu.user+usedCpu.system)/1000,phase:checkpoint.before.phase,cartLinesBefore:checkpoint.before.cart.length},supersedesGeneration, finalAt, endpointReason, speculativeHit:false, preparationMs:0 });
     await this.reply(result.reply, engineMs, finalAt, generation);
+    if(result.endCall&&generation===this.generation&&!this.closed)this.emit({type:"call_end",generation,summary:result.summary});
   }
   private async reply(text: string, engineMs: number, finalAt: number, generation = this.generation) {
     if (this.closed) return;

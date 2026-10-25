@@ -20,7 +20,7 @@ export class TurnRecorder {
       if(typeof event.supersedesGeneration==="number"){const old=this.rows.get(event.supersedesGeneration);if(old){old.status="no_audio";old.endpointReason+="+revised_by_continuation";this.publish(old);}}
     }
     if(event.type==="audio_start"){
-      const row=this.rows.get(Number(event.generation));if(row){row.ttsFirstByteMs=Number(event.ttsFirstByteMs);row.firstByteCached=!!event.firstByteCached;row.acknowledgement=!!event.acknowledgement;this.publish(row);}
+      const row=this.rows.get(Number(event.generation));if(row){row.ttsFirstByteMs=Number(event.ttsFirstByteMs);row.firstByteCached=!!event.firstByteCached;row.acknowledgement=!!event.acknowledgement;if(row.acknowledgement)row.ackFirstByteMs=row.ttsFirstByteMs;this.publish(row);}
     }
     if(event.type==="content_start"){const row=this.rows.get(Number(event.generation));if(row){row.contentFirstByteMs=Number(event.contentFirstByteMs);this.publish(row);}}
     if(event.type==="audio_end"){const row=this.rows.get(Number(event.generation));if(row)this.publish(row);}

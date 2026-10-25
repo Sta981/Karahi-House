@@ -1,3 +1,4 @@
+import {execFileSync} from "node:child_process";
 // Deliberately publish a source snapshot, never the development Git history.
 const roots = ["app/", "components/", "lib/", "voice/", "public/", "docs/", "scripts/"];
 const files = new Set(["README.md", "env.example", "package.json", "package-lock.json", "next.config.mjs", "next-env.d.ts", "tsconfig.json", "render.yaml"]);
@@ -22,4 +23,9 @@ export function assertNoSecrets(file, bytes, privateValues = []) {
   if (file === "env.example" && text.split(/\r?\n/).some(line => line.trim() && !line.trim().startsWith("#") && !/^[A-Z][A-Z0-9_]*=$/.test(line))) {
     throw Error("env.example must contain empty placeholders only");
   }
+}
+
+export function readStagedBlob(directory,file,expectedBytes){
+  try{return execFileSync("git",["-C",directory,"show",`:${file}`],{maxBuffer:Math.max(1024*1024,expectedBytes+65536),stdio:["ignore","pipe","pipe"]});}
+  catch{throw Error("Staged blob verification failed; publication stopped without exposing its contents");}
 }

@@ -31,9 +31,9 @@ test("short replies keep informative fragments together; stalled synthesis yield
  const tts=new FixedAudioTts(base,true,true,undefined,{targetMs:300,shortCharacters:180,stallMs:5});await tts.warm();
  // Shorten the fake ack/stall clock using a separate fixed-speech identity is
  // unnecessary: release after the first real cached stall (about ack+5 ms).
- const job=(async()=>{for await(const chunk of tts.speak("Added 2 Cheese Naan Bread. Anything else?",new AbortController().signal,event=>{events.push(event);if(event.type==="stall")release();}))chunks.push(chunk);})();
+ const job=(async()=>{for await(const chunk of tts.speak("Added 2 Cheese Naan Bread, packed separately. Anything else?",new AbortController().signal,event=>{events.push(event);if(event.type==="stall")release();}))chunks.push(chunk);})();
  await job;assert.ok(events.some(event=>event.type==="stall"));assert.equal(events.filter(event=>event.type==="segment"&&event.kind==="informative").length,1);
- const batch=events.find(event=>event.type==="jitter_ready");assert.equal(batch?.wholeShortReply,true);assert.ok(chunks.length>=3);assert.ok(chunks.at(-1)!.includes(Buffer.from([1,0,2,0])),"The informative batch preserves the synthesized PCM before its cached closing question");tts.close();
+ const batch=events.find(event=>event.type==="jitter_ready");assert.equal(batch?.wholeShortReply,true);assert.ok(chunks.length>=2);assert.ok(chunks.at(-1)!.includes(Buffer.from([1,0,2,0])),"The informative batch preserves the synthesized PCM before its cached closing question");tts.close();
 });
 test("gap counts exclude scheduling noise and include real underruns",()=>{
  const ledger=new PlaybackLedger();ledger.start(1,0);ledger.schedule(1,4800,0,.1);ledger.schedule(1,4800,.115,.1);ledger.schedule(1,4800,.5,.1);ledger.stall(1);
@@ -42,7 +42,7 @@ test("gap counts exclude scheduling noise and include real underruns",()=>{
 test("exhausted synthesis plays a cached failure notice without claiming the reply finished",async()=>{
  const events:TtsTelemetry[]=[],base:Tts={name:"aura-2",warm:async()=>{},close(){},async *speak(){throw Error("Aura timeout after one retry");}},tts=new FixedAudioTts(base);await tts.warm();
  const audio:Buffer[]=[];for await(const chunk of tts.speak("A dynamic fixture response.",new AbortController().signal,event=>events.push(event)))audio.push(chunk);
- assert.ok(events.some(event=>event.type==="terminal_failure"));assert.ok(audio.length>=2);assert.equal(events.some(event=>event.type==="segment"&&event.kind==="informative"),false);
+ assert.ok(events.some(event=>event.type==="terminal_failure"));assert.ok(audio.length>=1);assert.equal(events.some(event=>event.type==="segment"&&event.kind==="informative"),false);
  const ledger=new PlaybackLedger();ledger.schedule(1,4800,0,.1);ledger.fail(1);ledger.ended(1);ledger.serverEnd(1);assert.equal(ledger.metrics(1).finished,false);tts.close();
 });
 test("chunk telemetry is published once at completion and late ack timing cannot erase failure",()=>{

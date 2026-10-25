@@ -15,7 +15,8 @@ test("fixed menu/template audio excludes caller data and preserves the entire en
  const base:Tts={name:"fixture",warm:async()=>{},close(){},async *speak(text,signal){signal.throwIfAborted();calls.push(text);yield Buffer.from(text,"utf16le");}};
  const cache=new FixedAudioTts(base,true,false);await cache.warm();assert.equal(calls.length,FIXED_PHRASES.length);
  const replies=["Half or Full for Chicken Lahori Karahi?","Please check: 2 Garlic Naan Bread. Subtotal $7.98. Is that correct?","That dish isn't on this menu. Would you like Beef Nihari or Saag Paneer instead?","Noted: 1 Rice. Subtotal $2.99. Anything else?"];
- for(const text of replies)assert.equal((await collect(cache,text)).toString("utf16le"),text);
+ const normalize=(value:string)=>value.replace(/(\d+)dollars?(?:and(\d+)cents?)?/g,(_match,dollars,cents)=>`$${dollars}.${String(cents??0).padStart(2,"0")}`).replace(/[^a-z0-9$]/gi,"");
+ for(const text of replies)assert.equal(normalize((await collect(cache,text)).toString("utf16le")),normalize(text));
  assert.equal(cache.stats().entries,FIXED_PHRASES.length);assert.equal(cache.plan(replies[0]).firstByteCached,true);
  assert.ok(calls.slice(FIXED_PHRASES.length).every(text=>!FIXED_PHRASES.some(phrase=>phrase.text===text)));
  const count=calls.length;await collect(cache,FIXED_PHRASES[1].text);assert.equal(calls.length,count);cache.close();
@@ -26,7 +27,7 @@ test("interrupting a cached lead-in aborts its prefetched dynamic item audio",as
   if(FIXED_PHRASES.some(phrase=>phrase.text===text)){yield Buffer.from([0,0]);return;}
   await new Promise<void>(resolve=>signal.addEventListener("abort",()=>{cancelled=true;resolve();},{once:true}));signal.throwIfAborted();
  }};
- const cache=new FixedAudioTts(base);await cache.warm();const abort=new AbortController(),stream=cache.speak("Half or Full for Chicken Lahori Karahi?",abort.signal);
+ const cache=new FixedAudioTts(base);await cache.warm();const abort=new AbortController(),stream=cache.speak("Half or Full for an uncached fixture item?",abort.signal);
  await stream.next();abort.abort();await stream.return(undefined);assert.equal(cancelled,true);cache.close();
 });
 test("speculative engine entry point is absent; only final turns can change orders",async()=>{

@@ -82,8 +82,10 @@ test("new ambiguous items interrupt checkout and require a new recap",()=>{
 test("failed clarification is saved for review and cannot finalize",()=>{
   const first=runTurn(newState(),"paneer tikka");
   const second=runTurn(first.state,"I don't know");const third=runTurn(second.state,"I don't know");
-  assert.equal(third.state.needsReview,true);assert.equal(third.state.cart.length,0);
-  third.state.phase="confirm";assert.equal(runTurn(third.state,"yes").summary,undefined);
+  assert.notEqual(third.state.needsReview,true);
+  const fourth=runTurn(third.state,"I don't know");
+  assert.equal(fourth.state.needsReview,true);assert.equal(fourth.state.cart.length,0);
+  fourth.state.phase="confirm";assert.equal(runTurn(fourth.state,"yes").summary,undefined);
 });
 test("smart/LLM entry point cannot bypass recognition confirmation",async()=>{
   const first=await turn(undefined,"two paneer tikka");assert.equal(first.usedLLM,false);assert.equal(first.state.cart.length,0);

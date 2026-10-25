@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { publishable, assertNoSecrets } from "./lib/github-publication.mjs";
+import { publishable, assertNoSecrets, readStagedBlob } from "./lib/github-publication.mjs";
 
 const remote = "https://github.com/Sta981/Karahi-House.git";
 const root = realpathSync(".");
@@ -77,7 +77,8 @@ git(directory, ["add", "--", ...selected]);
 git(directory, ["add", "--update"]);
 for (const file of git(directory, ["ls-files", "-z"]).split("\0").filter(Boolean)) {
   if (!snapshot.has(file) || !publishable(file)) throw Error(`Unexpected tracked export: ${file}`);
-  const staged = execFileSync("git", ["-C", directory, "show", `:${file}`]);
+  const staged = readStagedBlob(directory,file,snapshot.get(file).byteLength);
+  if(!staged.equals(snapshot.get(file)))throw Error(`Staged export changed unexpectedly: ${file}`);
   assertNoSecrets(file, staged, privateValues);
 }
 if (git(directory, ["status", "--porcelain"]).trim()) {

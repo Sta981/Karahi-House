@@ -5,7 +5,7 @@ class VoiceCapture extends AudioWorkletProcessor {
     super(); this.sum = 0; this.count = 0; this.phase = 0; this.ratio = sampleRate / 16000;
     this.frame = new Int16Array(1280); this.offset = 0; this.samples = 0;
     this.active = false; this.loud = 0; this.quiet = 0; this.lastLoud = 0;
-    this.settings=Object.assign({threshold:.024,playbackThreshold:.032,minSpeechMs:320,echoCorrelation:.86},options?.processorOptions);
+    this.settings=Object.assign({threshold:.024,playbackThreshold:.04,minSpeechMs:480,echoCorrelation:.8},options?.processorOptions);
     this.reference=new Float32Array(2048);this.referenceAt=0;this.lowMic=new Float32Array(160);this.lowAt=0;this.refSum=0;this.lowSum=0;this.lowRefSum=0;this.lowCount=0;this.playbackUntil=0;this.noise=.003;this.peak=0;
   }
   process(inputs) {
@@ -28,8 +28,8 @@ class VoiceCapture extends AudioWorkletProcessor {
         if(score>correlation){correlation=score;referenceRms=Math.sqrt(refEnergy/160);}
       }
       let currentReference=0;for(let index=0;index<160;index++)currentReference+=this.reference[(this.referenceAt-160+index+4096)%2048]**2;
-      if(Math.sqrt(currentReference/160)>.004)this.playbackUntil=this.samples+5120;
-      const echo=correlation>=this.settings.echoCorrelation&&referenceRms>.004&&level<=referenceRms*1.5;
+      if(Math.sqrt(currentReference/160)>.004)this.playbackUntil=this.samples+7680;
+      const echo=correlation>=this.settings.echoCorrelation&&referenceRms>.004&&level<=referenceRms*2.5;
       const threshold=Math.max(this.samples<this.playbackUntil?this.settings.playbackThreshold:this.settings.threshold,this.noise*3);
       const loud=!echo&&level>=threshold;
       if(!this.active&&!loud&&!echo&&level<this.settings.threshold)this.noise=.98*this.noise+.02*level;

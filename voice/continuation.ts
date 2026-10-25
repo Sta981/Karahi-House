@@ -1,6 +1,7 @@
 import { performance } from "node:perf_hooks";
 import type { SttEvent } from "./contracts";
 import { phraseCompletion,type AdaptiveWait } from "./phrase-completeness";
+import { speechText } from "../lib/speech";
 type Final = Extract<SttEvent,{type:"final"}>;
 // Transport-only pause guard. Provider endpoints remain provisional until there
 // is sufficient local silence and the final covers all subsequent speech.
@@ -16,13 +17,14 @@ export class ContinuationGuard {
   private audioOriginAt?: number;
   private closed = false;
   private emitted?:{event:Final;at:number};private mergeBase?:Final;private voicedFrames=0;
-  constructor(private wait: number|AdaptiveWait, private emit: (event:Final)=>void,private continuation?:{windowMs:number;onResume:()=>void}) {}
+  constructor(private wait: number|AdaptiveWait, private emit: (event:Final)=>void,private continuation?:{windowMs:number;onResume:()=>void},private answers?:()=>string[]) {}
   confirmedSpeech(){
     if(this.closed||this.mergeBase||!this.continuation||!this.emitted||performance.now()-this.emitted.at>this.continuation.windowMs)return;
     if(/\b(?:that'?s all|that'?s it|nothing else|checkout|yes|no|correct)\s*[.!]?$/i.test(this.emitted.event.text))return;
     this.mergeBase=this.emitted.event;this.continuation.onResume();
   }
-  private duration(){if(typeof this.wait==="number")return this.wait;const kind=phraseCompletion(this.pending?.text??"");return this.wait[`${kind}Ms`];}
+  private isAnswer(){const heard=speechText(this.pending?.text??"").replace(/^(?:yes|yeah) please$/,"yes");return !!this.answers?.().some(answer=>speechText(answer)===heard);}
+  private duration(){if(typeof this.wait==="number")return this.wait;if(this.isAnswer())return this.wait.answerMs??600;const kind=phraseCompletion(this.pending?.text??"");return this.wait[`${kind}Ms`];}
   audio(pcm:Buffer) {
     this.samples += pcm.length/2;
     this.audioOriginAt ??= performance.now()-this.samples/16;
@@ -63,8 +65,9 @@ export class ContinuationGuard {
       if(performance.now()-this.lastVoiceAt<this.duration()-1){this.schedule();return;}
       const event=this.pending;this.pending=undefined;
       this.emitted={event,at:performance.now()};
-      this.emit({...event,endpointReason:`${event.endpointReason??"provider_final"}+${typeof this.wait==="number"?"fixed":`adaptive_${phraseCompletion(event.text)}`}_${settleMs}ms`});
+      this.emit({...event,endpointReason:`${event.endpointReason??"provider_final"}+${typeof this.wait==="number"?"fixed":`adaptive_${this.isAnswerText(event.text)?"answer":phraseCompletion(event.text)}`}_${settleMs}ms`});
     },delay);
   }
+  private isAnswerText(text:string){return !!this.answers?.().some(answer=>speechText(answer)===speechText(text));}
   close(){this.closed=true;if(this.timer)clearTimeout(this.timer);this.pending=undefined;this.emitted=undefined;this.mergeBase=undefined;}
 }

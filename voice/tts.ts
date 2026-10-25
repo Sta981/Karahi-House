@@ -57,7 +57,7 @@ export class KokoroTts implements Tts {
 export class AuraTts implements Tts {
   name = "aura-2";
   private pool?:AuraHttpPool;private request:AuraRequest;
-  constructor(private timeoutMs=8000,transport?:AuraRequest){this.pool=transport?undefined:new AuraHttpPool();this.request=transport??this.pool!.request;}
+  constructor(private timeoutMs=8000,transport?:AuraRequest,private streaming=false){this.pool=transport?undefined:new AuraHttpPool();this.request=transport??this.pool!.request;}
   async warm() { if (!process.env.DEEPGRAM_API_KEY?.trim()) throw Error("DEEPGRAM_API_KEY is missing"); }
   async *speak(text: string, signal: AbortSignal,observe?:TtsObserver) {
     // Escaped IPA objects expand request length. Split BEFORE the documented
@@ -73,7 +73,7 @@ export class AuraTts implements Tts {
       let idle:ReturnType<typeof setTimeout>;const expire=()=>deadline.abort(new DOMException("Aura inactivity timeout","TimeoutError"));
       const progress=()=>{clearTimeout(idle);idle=setTimeout(expire,this.timeoutMs);};progress();
       const hardLimit=setTimeout(expire,Math.max(60000,this.timeoutMs*2));const clear=()=>{clearTimeout(idle);clearTimeout(hardLimit);};
-      const chunks:Buffer[]=[];const emit:TtsObserver=event=>observe?.({...event,part,attempt});emit({type:"attempt_start",atMs:0});
+      const chunks:Buffer[]=[];let pending=Buffer.alloc(0),committed=false;const emit:TtsObserver=event=>observe?.({...event,part,attempt});emit({type:"attempt_start",atMs:0});
       try{
         const response=await this.request(url,{signal:linked,headers:{Authorization:`Token ${key}`,"Content-Type":"application/json"},body:JSON.stringify({text:auraPronunciation(text)})},emit);
         progress();
@@ -82,19 +82,22 @@ export class AuraTts implements Tts {
         for await(const chunk of response.body as unknown as AsyncIterable<Uint8Array>){
           signal.throwIfAborted();if(chunk.length)progress();const now=performance.now();firstByteMs??=now-start;
           chunks.push(Buffer.from(chunk));emit({type:"raw_chunk",atMs:now-start,gapMs:now-previous,bytes:chunk.length});previous=now;
+          if(this.streaming){pending=Buffer.concat([pending,chunk]);if(pending.length>=14400){const even=pending.length-pending.length%2,ready=pending.subarray(0,even);pending=pending.subarray(even);committed=true;yield ready;}}
         }
         const pcm=Buffer.concat(chunks);if(!pcm.length||pcm.length%2)throw Error("Incomplete PCM sample from Aura");
         emit({type:"attempt_end",ok:true,totalMs:performance.now()-start,firstByteMs,chunks:chunks.length,bytes:pcm.length});
-        // Atomic sentence-sized parts make a mid-body timeout safe to retry:
-        // no partial words or order facts have reached the caller yet.
-        clear();yield pcm;return;
+        // Build/diagnostic requests can stay atomic. Live requests release
+        // 300 ms batches; their already released words must never be replayed.
+        clear();if(!this.streaming)yield pcm;else if(pending.length){committed=true;yield pending;}return;
       }catch(error){
         const timeout=deadline.signal.aborted||error instanceof Error&&/timeout/i.test(error.name+error.message);
         const connection=error instanceof Error&&/ECONNRESET|EPIPE|ECONNREFUSED|socket|fetch failed/i.test(error.message);
         const reason=signal.aborted?"aborted":timeout?"timeout":connection?"connection":"http";
         emit({type:"attempt_end",ok:false,reason,totalMs:performance.now()-start,firstByteMs,chunks:chunks.length});
-        if(attempt===1&&!signal.aborted&&(timeout||connection)){emit({type:"retry",reason});continue;}
-        signal.throwIfAborted();throw Error(timeout?"Aura synthesis timeout after one retry":connection?"Aura connection failed after one retry":"Aura synthesis failed");
+        // A retry after audible PCM would repeat words/order facts. Only retry
+        // before streaming commits output; later failure gets a cached notice.
+        if(attempt===1&&!committed&&!signal.aborted&&(timeout||connection)){emit({type:"retry",reason});continue;}
+        signal.throwIfAborted();throw Error(timeout?`Aura synthesis timeout ${committed?"after partial output":"after one retry"}`:connection?`Aura connection failed ${committed?"after partial output":"after one retry"}`:"Aura synthesis failed");
       }finally{clear();}
     }
   }
@@ -103,7 +106,7 @@ export class AuraTts implements Tts {
 export function makeTts(name: string, transport = process.env.VOICE_AURA_TRANSPORT?.trim() || "http"): Tts {
   if (name === "kokoro") return new KokoroTts();
   if (name === "aura-2") {
-    if(transport==="http")return new AuraTts();
+    if(transport==="http")return new AuraTts(8000,undefined,true);
     if(transport==="ws")return new AuraWsTts();
     throw Error("VOICE_AURA_TRANSPORT must be http or ws");
   }

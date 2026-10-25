@@ -7,7 +7,7 @@ import ts from "typescript";
 export function loadVersion(version = "new") {
   if (!["old", "previous", "new"].includes(version)) throw new Error("Unknown menu version");
   const sourceRoot = version === "old" ? "eval/archive/old-menu/lib" : version === "previous" ? "eval/archive/previous-menu/lib" : "lib";
-  const files = [...(version === "new" ? ["menu-schema","speech","order-operations","cart-journal"] : []), "menu", "phonetic", "matcher", "privacy", "dialog", "llm-policy", "llm", "llm-context", "turn-metrics", "brain"];
+  const files = [...(version === "new" ? ["menu-schema","speech","order-operations","cart-journal","menu-browsing"] : []), "menu", "phonetic", "matcher", "privacy", "dialog", "llm-policy", "llm", "llm-context", "turn-metrics", "brain"];
   const sources = files.map((name) => ({ name, source: readFileSync(`${sourceRoot}/${name}.ts`, "utf8") }));
   const aliasText = version === "new" ? readFileSync("lib/menu-aliases.json", "utf8") : "";
   const policyText = version === "new" ? readFileSync("lib/recognition-policy.json", "utf8") : "";

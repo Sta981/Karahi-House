@@ -37,6 +37,7 @@ async function main() {
       if(msg.type==="ping")emit({type:"pong",sent:msg.sent,server:performance.now()});
       if(msg.type==="fixture_failure")emit({type:"error",code:"tts_failed",recoverable:true});
       if(msg.type==="fixture_close"){emit({type:"error",code:"stt_audio_timeout"});ws.close(1011,"STT failed");}
+      if(msg.type==="fixture_goodbye")void session.turn("goodbye");
       if(msg.type==="start")emit({type:"ready",model:msg.model,tts:"fixture",sampleRate:16000,frameMs:80,keyterms:KEYTERMS.length});
       if(msg.type==="mic_ready")void session.greet();
       if(msg.type==="barge_in"){bargeIns++;session.interrupt({source:msg.source,energy:msg.energy,threshold:msg.threshold,speechMs:msg.speechMs});}
@@ -60,12 +61,12 @@ async function main() {
       navigator.mediaDevices.getUserMedia=async()=>{
         const audio=new AudioContext();state.contexts.push(audio);const dest=audio.createMediaStreamDestination();
         const oscillator=audio.createOscillator(),gain=audio.createGain();oscillator.frequency.value=733;gain.gain.value=0;oscillator.connect(gain);gain.connect(dest);oscillator.start();await audio.resume();
-        state.speak=async()=>{gain.gain.setValueAtTime(.2,audio.currentTime);await new Promise(resolve=>setTimeout(resolve,500));gain.gain.setValueAtTime(0,audio.currentTime);};
+        state.speak=async()=>{gain.gain.setValueAtTime(.2,audio.currentTime);await new Promise(resolve=>setTimeout(resolve,640));gain.gain.setValueAtTime(0,audio.currentTime);};
         await new Promise(resolve=>setTimeout(resolve,350));state.micGranted=true;state.tracks.push(...dest.stream.getTracks());return dest.stream;
       };
     });
     await page.goto("http://127.0.0.1:3101/voice");assert.equal(await page.getByLabel("Hosted demo access code").count(),0);await page.getByLabel("Recognition model").selectOption("flux");await page.getByRole("button",{name:"Start microphone"}).click();
-    await page.getByRole("status").filter({hasText:"Listening"}).waitFor({timeout:30000});
+    try{await page.getByRole("status").filter({hasText:"Listening"}).waitFor({timeout:30000});}catch(error){report.setupStatus=await page.getByRole("status").innerText();report.pageErrors=failures;throw error;}
     assert.equal(await page.evaluate(()=>(window as any).__voiceFixture.socketBeforeMic),false);report.microphoneBeforeStt=true;report.localPasswordHidden=true;
     await page.waitForTimeout(150);const initialStops=await page.evaluate(()=>(window as any).__voiceFixture.stops);
     await page.evaluate(()=>(window as any).__voiceFixture.speak());
@@ -77,7 +78,7 @@ async function main() {
     await page.waitForTimeout(500);
     const after=await page.evaluate(()=>(window as any).__voiceFixture.stops);
     assert.ok(before>initialStops,"Speech start must stop greeting playback");assert.ok(after>before,"Second speech must stop first reply playback");assert.equal(turns,2);assert.ok(bargeIns>=2);
-    const table=await page.locator("table").first().innerText();assert.match(table,/Speech end → first audio byte/);
+    const table=await page.locator("table").first().innerText();assert.match(table,/First informative playback/);
     const downloadPromise=page.waitForEvent("download");await page.getByRole("button",{name:"Export turn log CSV"}).click();const download=await downloadPromise;const stream=await download.createReadStream();const chunks=[];for await(const chunk of stream!)chunks.push(chunk);const csv=Buffer.concat(chunks).toString("utf8");assert.match(csv,/transcript_redacted/);assert.match(csv,/one rice/);assert.match(csv,/MANGO_LASSI/);report.csvExport=true;
     await page.getByLabel(/^Intended words/).first().fill("one intended demo dish");const correctedDownload=page.waitForEvent("download");await page.getByRole("button",{name:"Export mishearings CSV"}).click();const corrected=await correctedDownload;const correctedStream=await corrected.createReadStream(),correctedChunks=[];for await(const chunk of correctedStream!)correctedChunks.push(chunk);const correctionCsv=Buffer.concat(correctedChunks).toString("utf8");assert.match(correctionCsv,/one intended demo dish/);assert.match(correctionCsv,/pending_manual_review/);report.mishearingsExport=true;
     await page.evaluate(()=>(window as any).__voiceFixture.sockets[0].send(JSON.stringify({type:"fixture_failure"})));
@@ -89,11 +90,18 @@ async function main() {
     const latest=new Map<number,any>();for(const row of playback)latest.set(row.generation,row.metrics);
     report.playback=[...latest].map(([generation,metrics])=>({generation,...metrics}));
     assert.ok(report.playback.some((row:any)=>row.finished),"Last browser playback source must finish naturally");
-    assert.ok(report.playback.some((row:any)=>row.interruptedByBargeIn&&row.trigger?.source==="browser_vad"&&row.trigger?.speechMs>=320));
+    assert.ok(report.playback.some((row:any)=>row.interruptedByBargeIn&&row.trigger?.source==="browser_vad"&&row.trigger?.speechMs>=480));
     assert.match(csv,/playback_finished/);assert.match(csv,/engine_profile/);
     await page.evaluate(()=>(window as any).__voiceFixture.sockets[0].send(JSON.stringify({type:"fixture_close"})));
     await page.getByRole("status").filter({hasText:"stopped receiving microphone audio"}).waitFor();assert.equal(await page.getByRole("button",{name:"Start microphone"}).isEnabled(),true);report.disconnectReasonPreserved=true;
     const released=await page.evaluate(()=>(window as any).__voiceFixture.tracks.every((track:MediaStreamTrack)=>track.readyState==="ended"));assert.equal(released,true);assert.deepEqual(failures,[]);
+    const beforeIgnore={turns,bargeIns};await page.getByLabel("Ignore interruptions (demo)").check();
+    await page.getByRole("button",{name:"Start microphone"}).click();await page.getByRole("status").filter({hasText:"Listening"}).waitFor();
+    await page.waitForTimeout(200);await page.evaluate(()=>(window as any).__voiceFixture.speak());await page.waitForTimeout(2600);
+    assert.equal(bargeIns,beforeIgnore.bargeIns);assert.equal(turns,beforeIgnore.turns);report.ignoreInterruptionsSuppressesMicDuringPlayback=true;
+    await page.evaluate(()=>(window as any).__voiceFixture.sockets.at(-1).send(JSON.stringify({type:"fixture_goodbye"})));
+    await page.getByRole("button",{name:"Start microphone"}).waitFor({state:"visible"});await page.waitForFunction(()=>!(document.querySelector("button.btn-primary") as HTMLButtonElement)?.disabled,{},{timeout:15000});
+    report.goodbyeWaitsForPlaybackAndReleasesMic=true;
     report.ok=true;report.turns=turns;report.bargeIns=bargeIns;report.stoppedPlaybackSources=after;report.micReleased=released;report.latencyTableFixtureOnly=table;
   }catch(error){report.ok=false;report.failure=error instanceof Error?error.message:"Browser failed";}
   finally{await browser.close();for(const ws of wss.clients)ws.terminate();wss.close();await new Promise<void>(resolve=>server.close(()=>resolve()));await app.close();writeFileSync("eval/results/voice-browser.json",JSON.stringify(report,null,2)+"\n");console.log(JSON.stringify(report,null,2));}

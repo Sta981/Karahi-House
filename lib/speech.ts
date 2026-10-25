@@ -14,6 +14,9 @@ const BREAD_CONTEXT=new Set(["garlic","plain","cheese","chili","onion","keema"])
 const NAAN_MISHEARINGS=new Set(["none","knot","nun","non"]);
 export function speechTokens(text:string):string[]{
   let value=text.toLowerCase().replace(/\bsaath\s+mein\b/g,"and").replace(/\bde\s+(?:dein|do|dena)\b/g," ");
+  // A fused bread mishearing is repaired only as an ordering fragment. It
+  // cannot rewrite a customer's name, callback, or an arbitrary sentence.
+  if(/^(?:(?:i|would|like|want|need|add|get|me|please|can|have|a|an|one|two|three|four|too|to|for|\d+)\s+)*ganina(?:\s+(?:please|bread|naan))?[.!]?$/i.test(value.trim()))value=value.replace(/\bganina\b/g,"garlic naan");
   let tokens=value.replace(/[^a-z0-9\s]/g," ").split(/\s+/).filter(Boolean).map(token=>PLURALS[token]??token).filter(token=>!FILLERS.has(token));
   tokens=tokens.filter((token,index)=>index===0||token!==tokens[index-1]);
   // Context-only STT repair. "none" elsewhere retains its ordinary meaning.
