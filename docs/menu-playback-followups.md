@@ -16,7 +16,7 @@ Nova en-IN's complete-phrase wait is provisionally 800 ms, uncertain 900 ms, unf
 
 Barge-in requires 480 ms (six 80 ms frames), uses a higher playback threshold and a stronger correlated-reference echo guard. Manual interruption stays available. “Ignore interruptions (demo)” sends silence while reply audio is queued/playing, keeping the STT clock continuous; turn-taking resumes after playback. This deliberately also ignores a real caller trying to interrupt in that mode.
 
-Validation: 53 selected engine tests, 30 live-call/pattern/bounds tests, 53 voice tests and 3 publication tests. Public expectations were updated for removed boilerplate and the three-failure policy; no tests were removed. The runtime transpiler only gained the new menu-browsing dependency. Held-out files and grading rules were not changed or executed.
+Validation: 53 selected engine tests, 30 live-call/pattern/bounds tests, 53 voice tests and 4 publication tests. Public expectations were updated for removed boilerplate and the three-failure policy; no tests were removed. The runtime transpiler only gained the new menu-browsing dependency. Held-out files and grading rules were not changed or executed.
 
 The [full local walkthrough](order-walkthrough.json) includes inputs, exact read-back and the final simulated pending-acceptance ticket. Its subtotal is $48.48: Full Chicken Lahori Karahi, Extra Spicy, no green onions ($36); two Garlic Naan Bread, Mild Spice ($7.98); Mango Lassi ($4.50). All cents come from the approved menu, not a model. Tax is not configured; payment at pickup; staff acceptance remains pending.
 
