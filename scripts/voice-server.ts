@@ -15,7 +15,7 @@ import { endpointSettings } from "../voice/endpointing";
 import { type VoiceLogRow } from "../voice/turn-log";
 import { TurnRecorder } from "../voice/turn-recorder";
 import type { SttModel, SttStream } from "../voice/contracts";
-import { demoAccessCode } from "../voice/access";
+import { demoAccessCode,isLoopback,requiresVoiceToken,validVoiceOrigin } from "../voice/access";
 import { voiceErrorMessage } from "../voice/connection-status";
 import { qualifiedBargeIn } from "../voice/barge-in";
 
@@ -25,8 +25,11 @@ if (existsSync(".env.local")) loadEnvFile(".env.local");
 const port = Number(process.env.PORT || 3000);
 const locationLabel=process.env.VOICE_DEPLOYMENT_LABEL|| (process.env.RENDER==="true"?"US-hosted":"Lahore local");
 if(!["Lahore local","US-hosted"].includes(locationLabel))throw Error("Unknown deployment label");
-const host = process.env.VOICE_BIND_ADDRESS || (locationLabel==="US-hosted"?"0.0.0.0":"127.0.0.1");
-const accessCode=demoAccessCode(host,process.env.VOICE_DEMO_ACCESS_TOKEN);
+const host = process.env.VOICE_BIND_ADDRESS || "127.0.0.1";
+const configuredToken=process.env.VOICE_DEMO_ACCESS_TOKEN?.trim()??"";
+const forceToken=process.env.VOICE_REQUIRE_ACCESS_TOKEN==="true";
+if((!isLoopback(host)||forceToken)&&configuredToken.length<24)console.warn("WARNING: VOICE_DEMO_ACCESS_TOKEN is missing or too short. Refusing public/tunnel access.");
+demoAccessCode(host,configuredToken,forceToken);
 if(process.env.VOICE_PERSIST_LOGS==="true")throw Error("Server transcript persistence is disabled. Use browser-local CSV exports.");
 const logToDisk=false;
 const app = next({ dev: process.env.NODE_ENV !== "production", hostname: host, port });
@@ -41,6 +44,8 @@ let readyMs:number|null=null;
 // checks key presence and synthesizes no caller/template audio.
 const warm = tts.warm().then(()=>{readyMs=performance.now()-bootStarted;}).catch(() => { warmError = "TTS is unavailable. Check credentials, credits and connection; no fallback provider was called."; });
 const server = createServer((req, res) => {
+  const publicRequest=requiresVoiceToken(host,req,forceToken);
+  if(publicRequest&&configuredToken.length<24){res.writeHead(403,{"Content-Type":"application/json","Cache-Control":"no-store"});res.end(JSON.stringify({ok:false,error:"public_access_token_missing",requiresAccessCode:true}));return;}
   if (req.url === "/voice-health") {
     res.setHeader("Content-Type", "application/json"); res.setHeader("Cache-Control", "no-store");
     res.statusCode=!warmError&&readyMs!==null?200:503;
@@ -48,7 +53,7 @@ const server = createServer((req, res) => {
       ok:!warmError&&readyMs!==null,tts:ttsName,ttsTransport:ttsName==="aura-2"?(process.env.VOICE_AURA_TRANSPORT?.trim()||"http"):"local",stt:["flux","nova-3","nova-3-en-IN"],location:locationLabel,
       keyterms:KEYTERMS.length,keyPresent:!!process.env.DEEPGRAM_API_KEY?.trim(),faqEnabled:process.env.VOICE_FAQ_ENABLED==="true",
       recordingsStored:false,transcriptsPersisted:false,fixedAudio:tts.stats(),startup:{nextReadyMs,readyMs},
-      requiresAccessCode:!!accessCode,localLogs:logToDisk,endpointProfile:process.env.VOICE_ENDPOINT_PROFILE||"baseline",
+      requiresAccessCode:publicRequest,localLogs:logToDisk,endpointProfile:process.env.VOICE_ENDPOINT_PROFILE||"baseline",
       endpointMode:process.env.VOICE_ENDPOINT_MODE||"adaptive",adaptive:{completeWaitMs:COMPLETE_WAIT,incompleteMs:DEFAULT_ADAPTIVE.incompleteMs,uncertainMs:DEFAULT_ADAPTIVE.uncertainMs},speculationEnabled:false
     }));return;
   }
@@ -58,12 +63,13 @@ const wss = new WebSocketServer({ noServer: true, maxPayload: 16384, perMessageD
 server.on("upgrade", (req, socket, head) => {
   if (req.url?.split("?")[0] !== "/ws/voice") { void app.getUpgradeHandler()(req, socket, head); return; }
   // Browser same-origin check; no public credential-bearing socket without it.
-  let allowed = false;
-  try { allowed = new URL(req.headers.origin || "").host === req.headers.host; } catch {}
+  const allowed=validVoiceOrigin(req)&&(!requiresVoiceToken(host,req,forceToken)||configuredToken.length>=24);
   if (!allowed) { socket.write("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n"); socket.destroy(); return; }
   wss.handleUpgrade(req, socket, head, ws => wss.emit("connection", ws, req));
 });
-wss.on("connection", ws => {
+wss.on("connection", (ws,request) => {
+  const accessCode=demoAccessCode(host,configuredToken,requiresVoiceToken(host,request,forceToken));
+  const authLimit=setTimeout(()=>{if(accessCode)ws.close(1008,"Authentication required");},10000);
   if(wss.clients.size>1){ws.send(JSON.stringify({type:"error",code:"voice_busy",message:voiceErrorMessage("voice_busy")}));ws.close(1013,"Another call is active");return;}
   let stt: SttStream | undefined, session: VoiceSession | undefined, guard: ContinuationGuard | undefined, starting = false, active = false, frames = 0;
   const meta={callId:randomUUID(),location:locationLabel,model:"",profile:""};
@@ -73,6 +79,11 @@ wss.on("connection", ws => {
   const recorder=new TurnRecorder(meta,publish);
   const emit = (event: Record<string, unknown> | Buffer) => {
     if (ws.readyState !== WebSocket.OPEN) return;
+    // Keep raw chunk diagnostics in memory and include them in the final turn
+    // row. Only the stall marker needs an immediate browser control message.
+    if(!Buffer.isBuffer(event)&&event.type==="tts_telemetry"){
+      recorder.event(event);if((event.event as Record<string,unknown>)?.type!=="stall")return;
+    }
     if (ws.bufferedAmount > 1024 * 1024) { ws.close(1013, "Audio connection too slow"); return; }
     if(!Buffer.isBuffer(event)&&event.type==="error"){
       console.log(JSON.stringify({event:"voice_error",code:event.code,reason:event.reason,closeCode:event.closeCode}));
@@ -80,7 +91,7 @@ wss.on("connection", ws => {
     }
     ws.send(Buffer.isBuffer(event) ? event : JSON.stringify(event));
     if(Buffer.isBuffer(event))return;
-    recorder.event(event);
+    if(event.type!=="tts_telemetry")recorder.event(event);
     if(event.type==="reply"&&process.env.VOICE_STATE_KEYTERMS!=="false")stt?.configureKeyterms?.(stateKeyterms(session?.recognitionHints()??[]));
   };
   const stop = () => { active = false; stt?.close(); stt = undefined; guard?.close(); guard = undefined; session?.close(); session = undefined;recorder.end(); };
@@ -99,11 +110,13 @@ wss.on("connection", ws => {
       recorder.latency(Number(message.generation),message.timing);return;
     }
     if(message.type==="playback"){recorder.playback(Number(message.generation),message.metrics);return;}
+    if(message.type==="audio_timing"){recorder.audioTiming(Number(message.generation),message.timing);return;}
     if (message.type === "stop") { stop(); ws.close(); return; }
     if (message.type === "barge_in") { if(qualifiedBargeIn(message)){if(message.source==="browser_vad")guard?.confirmedSpeech();session?.interrupt({source:message.source,energy:message.energy,threshold:message.threshold,speechMs:message.speechMs});}return; }
     if (message.type === "mic_ready" && active) { void session?.greet(); return; }
     if (message.type !== "start" || active || starting) return;
     if(accessCode){const entered=Buffer.from(typeof message.accessCode==="string"?message.accessCode:"");const expected=Buffer.from(accessCode);if(entered.length!==expected.length||!timingSafeEqual(entered,expected)){emit({type:"error",code:"access_denied",message:"Enter the private demo access code."});ws.close(1008,"Access denied");return;}}
+    clearTimeout(authLimit);
     const model: SttModel = message.model === "nova-3" ? "nova-3" : message.model==="nova-3-en-IN"?"nova-3-en-IN":"flux";
     starting = true;
     try {
@@ -135,7 +148,7 @@ wss.on("connection", ws => {
     } finally { starting = false; }
   });
   ws.on("error", stop);
-  ws.on("close", code => { clearTimeout(limit); stop(); console.log(JSON.stringify({ event: "voice_closed", closeCode:code, audioFrames: frames, audioMinutes: frames * .08 / 60, recordingsStored: false })); });
+  ws.on("close", code => { clearTimeout(authLimit);clearTimeout(limit); stop(); console.log(JSON.stringify({ event: "voice_closed", closeCode:code, audioFrames: frames, audioMinutes: frames * .08 / 60, recordingsStored: false })); });
 });
 server.listen(port, host, () => console.log(`Streaming demo: http://${host}:${port}/voice (TTS=${ttsName}; LLM FAQ ${process.env.VOICE_FAQ_ENABLED === "true" ? "enabled" : "off"}; no recording)`));
 function shutdown() { for (const client of wss.clients) client.close(); tts.close(); server.close(); void app.close().then(() => process.exit()); }

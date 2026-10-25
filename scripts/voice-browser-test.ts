@@ -42,6 +42,7 @@ async function main() {
       if(msg.type==="barge_in"){bargeIns++;session.interrupt({source:msg.source,energy:msg.energy,threshold:msg.threshold,speechMs:msg.speechMs});}
       if(msg.type==="playback")recorder.playback(msg.generation,msg.metrics);
       if(msg.type==="latency")recorder.latency(msg.generation,msg.timing);
+      if(msg.type==="audio_timing")recorder.audioTiming(msg.generation,msg.timing);
       if(msg.type==="stop")ws.close();
     });ws.on("close",()=>session.close());
   });

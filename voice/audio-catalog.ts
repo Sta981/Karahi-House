@@ -8,6 +8,8 @@ export const FIXED_PHRASES=[
  {id:"anything_else",text:"Anything else?"},{id:"readback",text:"Please check: "},
  {id:"unavailable",text:"That dish isn't on this menu. Would you like "},{id:"unavailable_alternate",text:"I don't have that dish on this menu. Would you like "},
  {id:"ack_ok",text:"Okay. "},{id:"ack_got",text:"Got it. "},
+ {id:"stall",text:"One moment. "},
+ {id:"failure",text:"I'm having trouble speaking. Please check the text reply."},
  {id:"no_add",text:"No items added. "},{id:"added",text:"Added "},{id:"removed",text:"Removed "},{id:"noted",text:"Noted. "},
  ...["Half","Full",...MODIFIERS.spice_level.options].map((text,index)=>({id:`modifier_${index}`,text})),
  ...["RICE","ROTI","RAITA","KHEER","PAPADAM","GARLIC_NAAN_BREAD","CHICKEN_WHITE_KARAHI","CHICKEN_BIRYANI","MANGO_LASSI"].map(id=>{

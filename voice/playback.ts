@@ -1,16 +1,18 @@
 import type { BargeTrigger } from "./barge-in";
-export type PlaybackMetrics={replyTextLength:number;finished:boolean;serverAudioEnded:boolean;interruptedByBargeIn:boolean;trigger?:BargeTrigger;receivedChunks:number;droppedChunks:number;lateChunks:number;activeChunks:number;acknowledgementGapMs:number|null;maxGapMs:number;failed:boolean};
+export type PlaybackMetrics={replyTextLength:number;finished:boolean;serverAudioEnded:boolean;interruptedByBargeIn:boolean;trigger?:BargeTrigger;receivedChunks:number;droppedChunks:number;lateChunks:number;activeChunks:number;acknowledgementGapMs:number|null;maxGapMs:number;gapCount:number;stallPrompts:number;failed:boolean};
 type Row=PlaybackMetrics&{ackBytes:number;bytes:number;ackEnd?:number;scheduledEnd?:number};
 // Completion means the LAST browser source ended naturally, not that TTS sent EOF.
 export class PlaybackLedger {
  private rows=new Map<number,Row>();
- private row(generation:number){let row=this.rows.get(generation);if(!row){row={replyTextLength:0,finished:false,serverAudioEnded:false,interruptedByBargeIn:false,receivedChunks:0,droppedChunks:0,lateChunks:0,activeChunks:0,acknowledgementGapMs:null,maxGapMs:0,failed:false,ackBytes:0,bytes:0};this.rows.set(generation,row);}return row;}
+ private row(generation:number){let row=this.rows.get(generation);if(!row){row={replyTextLength:0,finished:false,serverAudioEnded:false,interruptedByBargeIn:false,receivedChunks:0,droppedChunks:0,lateChunks:0,activeChunks:0,acknowledgementGapMs:null,maxGapMs:0,gapCount:0,stallPrompts:0,failed:false,ackBytes:0,bytes:0};this.rows.set(generation,row);}return row;}
+ stall(generation:number){this.row(generation).stallPrompts++;}
+ fail(generation:number){this.row(generation).failed=true;this.row(generation).finished=false;}
  reply(generation:number,length:number){this.row(generation).replyTextLength=length;}
  start(generation:number,ackBytes:number){this.row(generation).ackBytes=ackBytes;}
- schedule(generation:number,bytes:number,start:number,duration:number){
+ schedule(generation:number,bytes:number,start:number,duration:number,kind:"neutral"|"informative"="informative"){
   const row=this.row(generation);row.receivedChunks++;row.activeChunks++;
-  const gap=row.scheduledEnd===undefined?0:Math.max(0,(start-row.scheduledEnd)*1000);row.maxGapMs=Math.max(row.maxGapMs,gap);
-  if(row.ackBytes&&row.bytes>=row.ackBytes&&row.acknowledgementGapMs===null&&row.ackEnd!==undefined)row.acknowledgementGapMs=Math.max(0,(start-row.ackEnd)*1000);
+  const gap=row.scheduledEnd===undefined?0:Math.max(0,(start-row.scheduledEnd)*1000);row.maxGapMs=Math.max(row.maxGapMs,gap);if(gap>=80)row.gapCount++;
+  if(kind==="informative"&&row.ackBytes&&row.bytes>=row.ackBytes&&row.acknowledgementGapMs===null&&row.ackEnd!==undefined)row.acknowledgementGapMs=Math.max(0,(start-row.ackEnd)*1000);
   if(row.ackBytes&&row.bytes<row.ackBytes&&row.bytes+bytes>=row.ackBytes)row.ackEnd=start+(row.ackBytes-row.bytes)/48000;
   row.bytes+=bytes;row.scheduledEnd=start+duration;
  }

@@ -1,6 +1,6 @@
 {
   "kind": "fixed-synthetic-menu-templates-only",
-  "identity": "25fc65b8bbe25ba0eed58a1ae8a1a9ab9384d01703c115695c0f2201559afdf0",
+  "identity": "6ed25e93f2e1ae40a56c57740e51f4d1e7f098cd0a7d944ab09ceb405f762b78",
   "voice": "aura-2-thalia-en:linear16:24000:v2",
   "sampleRate": 24000,
   "entries": [
@@ -73,6 +73,20 @@
       "file": "255a46ccf69a1fae517c32a9dc2dfff5ad5dc23ff8aa7fa9bb53ec49d78b1a19.pcm",
       "bytes": 28800,
       "sha256": "d7c738c8c0c096540d590e8a3d3e4a0b717015c6ac7ed87121a3b9b3fdbb6a96"
+    },
+    {
+      "id": "stall",
+      "text": "One moment. ",
+      "file": "193e6d9acc23d8fdabdf80d964046bb189058f812508d1f541bf373ce6965adc.pcm",
+      "bytes": 42240,
+      "sha256": "a2dd91e3ab02a94719a8a63af9cdbe3d1067e008ff9fc3aa44d2f463eef69850"
+    },
+    {
+      "id": "failure",
+      "text": "I'm having trouble speaking. Please check the text reply.",
+      "file": "8ab91adfd2848af8b58cf842568ea5fb7784ec4f5b113914b039d961a66bd537.pcm",
+      "bytes": 153600,
+      "sha256": "7ba635ecca46d2a78213a50793e2094ffc7a7d58a7ede4542cac663fae3ba70b"
     },
     {
       "id": "no_add",

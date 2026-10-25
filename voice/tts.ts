@@ -3,6 +3,8 @@ import path from "node:path";
 import { auraPronunciation, splitSpeech } from "./pronunciation.mjs";
 import type { Tts } from "./contracts";
 import { AuraWsTts } from "./aura-ws";
+import {AuraHttpPool,type AuraRequest} from "./aura-http";
+import type {TtsObserver} from "./contracts";
 
 export class KokoroTts implements Tts {
   name = "kokoro";
@@ -54,27 +56,49 @@ export class KokoroTts implements Tts {
 }
 export class AuraTts implements Tts {
   name = "aura-2";
-  constructor(private timeoutMs=20000){}
+  private pool?:AuraHttpPool;private request:AuraRequest;
+  constructor(private timeoutMs=8000,transport?:AuraRequest){this.pool=transport?undefined:new AuraHttpPool();this.request=transport??this.pool!.request;}
   async warm() { if (!process.env.DEEPGRAM_API_KEY?.trim()) throw Error("DEEPGRAM_API_KEY is missing"); }
-  async *speak(text: string, signal: AbortSignal) {
+  async *speak(text: string, signal: AbortSignal,observe?:TtsObserver) {
     // Escaped IPA objects expand request length. Split BEFORE the documented
     // 2000-character Aura limit; preserve every part of a long order read-back.
-    for (const part of splitSpeech(text, 160)) yield* this.speakPart(part, signal);
+    for (const [index,part] of splitSpeech(text, 100).entries()) yield* this.speakPart(part, signal,observe,index);
   }
-  private async *speakPart(text: string, signal: AbortSignal) {
+  private async *speakPart(text: string, signal: AbortSignal,observe?:TtsObserver,part=0) {
     const key = process.env.DEEPGRAM_API_KEY?.trim(); if (!key) throw Error("DEEPGRAM_API_KEY is missing");
     const url = new URL("https://api.deepgram.com/v1/speak");
     for (const [key, value] of Object.entries({ model: "aura-2-thalia-en", encoding: "linear16", sample_rate: "24000", container: "none", mip_opt_out: "true" })) url.searchParams.set(key, value);
-    const response = await fetch(url, { method: "POST", signal: AbortSignal.any([signal, AbortSignal.timeout(this.timeoutMs)]), headers: { Authorization: `Token ${key}`, "Content-Type": "application/json" }, body: JSON.stringify({ text: auraPronunciation(text) }) });
-    if (!response.ok || !response.body) { await response.body?.cancel(); throw Error(`Aura synthesis HTTP ${response.status}`); }
-    let pending = Buffer.alloc(0);
-    for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
-      signal.throwIfAborted(); const bytes = Buffer.concat([pending, Buffer.from(chunk)]); const end = bytes.length - bytes.length % 2;
-      if (end) yield bytes.subarray(0, end); pending = bytes.subarray(end);
+    for(let attempt=1;attempt<=2;attempt++){
+      signal.throwIfAborted();const start=performance.now(),deadline=new AbortController(),linked=AbortSignal.any([signal,deadline.signal]);let firstByteMs:number|undefined,previous=start;
+      let idle:ReturnType<typeof setTimeout>;const expire=()=>deadline.abort(new DOMException("Aura inactivity timeout","TimeoutError"));
+      const progress=()=>{clearTimeout(idle);idle=setTimeout(expire,this.timeoutMs);};progress();
+      const hardLimit=setTimeout(expire,Math.max(60000,this.timeoutMs*2));const clear=()=>{clearTimeout(idle);clearTimeout(hardLimit);};
+      const chunks:Buffer[]=[];const emit:TtsObserver=event=>observe?.({...event,part,attempt});emit({type:"attempt_start",atMs:0});
+      try{
+        const response=await this.request(url,{signal:linked,headers:{Authorization:`Token ${key}`,"Content-Type":"application/json"},body:JSON.stringify({text:auraPronunciation(text)})},emit);
+        progress();
+        emit({type:"headers",atMs:performance.now()-start});
+        if(!response.ok||!response.body){await response.body?.cancel();throw Error(`Aura synthesis HTTP ${response.status}`);}
+        for await(const chunk of response.body as unknown as AsyncIterable<Uint8Array>){
+          signal.throwIfAborted();if(chunk.length)progress();const now=performance.now();firstByteMs??=now-start;
+          chunks.push(Buffer.from(chunk));emit({type:"raw_chunk",atMs:now-start,gapMs:now-previous,bytes:chunk.length});previous=now;
+        }
+        const pcm=Buffer.concat(chunks);if(!pcm.length||pcm.length%2)throw Error("Incomplete PCM sample from Aura");
+        emit({type:"attempt_end",ok:true,totalMs:performance.now()-start,firstByteMs,chunks:chunks.length,bytes:pcm.length});
+        // Atomic sentence-sized parts make a mid-body timeout safe to retry:
+        // no partial words or order facts have reached the caller yet.
+        clear();yield pcm;return;
+      }catch(error){
+        const timeout=deadline.signal.aborted||error instanceof Error&&/timeout/i.test(error.name+error.message);
+        const connection=error instanceof Error&&/ECONNRESET|EPIPE|ECONNREFUSED|socket|fetch failed/i.test(error.message);
+        const reason=signal.aborted?"aborted":timeout?"timeout":connection?"connection":"http";
+        emit({type:"attempt_end",ok:false,reason,totalMs:performance.now()-start,firstByteMs,chunks:chunks.length});
+        if(attempt===1&&!signal.aborted&&(timeout||connection)){emit({type:"retry",reason});continue;}
+        signal.throwIfAborted();throw Error(timeout?"Aura synthesis timeout after one retry":connection?"Aura connection failed after one retry":"Aura synthesis failed");
+      }finally{clear();}
     }
-    if (pending.length) throw Error("Incomplete PCM sample from Aura");
   }
-  close() {}
+  close() {this.pool?.close();}
 }
 export function makeTts(name: string, transport = process.env.VOICE_AURA_TRANSPORT?.trim() || "http"): Tts {
   if (name === "kokoro") return new KokoroTts();

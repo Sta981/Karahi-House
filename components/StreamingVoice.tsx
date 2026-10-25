@@ -28,6 +28,7 @@ export default function StreamingVoice() {
     let lastEnd = NaN, lastEndAudio = NaN, audioStart: any, measuredGeneration = -1, pendingByte: number | undefined;
     const sources = new Set<AudioBufferSourceNode>();
     const playback=new PlaybackLedger();
+    const segmentKinds=new Map<number,"neutral"|"informative">(),speechEnds=new Map<number,number>(),heardTiming=new Map<number,Record<string,number>>();
     const send=(message:Record<string,unknown>)=>{if(socket?.readyState===WebSocket.OPEN)socket.send(JSON.stringify(message));};
     const publishPlayback=(id:number)=>{if(id<0)return;const metrics=playback.metrics(id);send({type:"playback",generation:id,metrics});setLogs(previous=>previous.map(row=>row.turnId.endsWith(`:${id}`)?{...row,playback:metrics}:row));};
     const stopAudio = (trigger?:BargeTrigger) => {
@@ -76,11 +77,11 @@ export default function StreamingVoice() {
       if (event.data instanceof ArrayBuffer) {
         const view = new DataView(event.data);if(view.byteLength<=4)return;const chunkGeneration=view.getUint32(0,true);
         if (!context || !ready || blocked || chunkGeneration !== generation){playback.drop(chunkGeneration);publishPlayback(chunkGeneration);return;}
-        const received = performance.now();
+        const received = performance.now(),speechEnd=speechEnds.get(generation)??lastEnd;
         if (audioStart && generation > 0 && measuredGeneration !== generation && Number.isFinite(lastEnd) && sync.rtt !== Infinity) {
           const finalBrowser = audioStart.finalAt - sync.offset, firstBrowser = audioStart.firstAt - sync.offset;
           // Greeting is excluded. EOS is an energy-VAD estimate, not manual ground truth.
-          const timing: Timing = { totalMs: received-lastEnd, endpointAndUplinkMs: finalBrowser-lastEnd, engineMs: audioStart.engineMs, ttsFirstByteMs: audioStart.ttsFirstByteMs, returnNetworkMs: received-firstBrowser, browserRttMs: sync.rtt, clockUncertaintyMs: sync.rtt/2 };
+          const timing: Timing = { totalMs: received-speechEnd, endpointAndUplinkMs: finalBrowser-speechEnd, engineMs: audioStart.engineMs, ttsFirstByteMs: audioStart.ttsFirstByteMs, returnNetworkMs: received-firstBrowser, browserRttMs: sync.rtt, clockUncertaintyMs: sync.rtt/2 };
           if (timing.totalMs >= 0 && timing.endpointAndUplinkMs >= -sync.rtt) {setTimings(prev => [...prev.slice(-199), timing]);send({type:"latency",generation,timing});}
           measuredGeneration = generation;
         }
@@ -93,7 +94,15 @@ export default function StreamingVoice() {
         for (let i = 0; i < count; i++) floats[i] = data.getInt16(i * 2, true)/32768;
         const source = context.createBufferSource(); source.buffer = buffer; source.connect(context.destination);
         if(worklet)source.connect(worklet,0,1);
-        scheduled = Math.max(scheduled, context.currentTime + .015);playback.schedule(generation,bytes.length-(pendingByte===undefined?0:1),scheduled,buffer.duration);source.start(scheduled); scheduled += buffer.duration;
+        scheduled = Math.max(scheduled, context.currentTime + .015);const kind=segmentKinds.get(generation)??"informative";
+        playback.schedule(generation,bytes.length-(pendingByte===undefined?0:1),scheduled,buffer.duration,kind);
+        if(generation>0&&Number.isFinite(speechEnd)){
+          const record=heardTiming.get(generation)??{},starts=performance.now()+(scheduled-context.currentTime)*1000;
+          record.speechToFirstByteMs??=received-speechEnd;record.speechToFirstPlaybackMs??=starts-speechEnd;
+          if(kind==="informative"){record.speechToInformativeByteMs??=received-speechEnd;record.speechToInformativePlaybackMs??=starts-speechEnd;}
+          heardTiming.set(generation,record);send({type:"audio_timing",generation,timing:record});
+        }
+        source.start(scheduled); scheduled += buffer.duration;
         const playingGeneration=generation;
         sources.add(source); source.onended = () => { sources.delete(source); source.disconnect();playback.ended(playingGeneration);if(!stopped)publishPlayback(playingGeneration); }; return;
       }
@@ -104,10 +113,12 @@ export default function StreamingVoice() {
       }
       if (msg.type === "error") {
         const message=msg.message||voiceErrorMessage(msg.code);
-        if(recoverableVoiceError(msg.code)){stopAudio({source:"tts_error"});setStatus(message);return;}
+        if(recoverableVoiceError(msg.code)){if(msg.preservePlayback){playback.fail(msg.generation);publishPlayback(msg.generation);}else stopAudio({source:"tts_error"});setStatus(message);return;}
         fail(message);return;
       }
       if(msg.type==="partial"){setPartial(msg.text);return;}
+      if(msg.type==="audio_segment"){segmentKinds.set(msg.generation,msg.kind==="neutral"?"neutral":"informative");return;}
+      if(msg.type==="tts_telemetry"&&msg.event?.type==="stall"){playback.stall(msg.generation);return;}
       if(msg.type==="cart_revision"){setCart(msg.cart);return;}
       if (msg.type === "interrupt") { stopAudio({source:msg.source==="continuation"?"continuation":"server_turn"}); generation = msg.generation; blocked = true; return; }
       if (msg.type === "audio_start") {
@@ -120,9 +131,10 @@ export default function StreamingVoice() {
         // If VAD has not yet hung over, use provider word end on the capture
         // timeline as a labelled estimate. Never use receipt of final text as EOS.
         if (!Number.isFinite(lastEnd) && typeof msg.audioEndSeconds === "number" && Number.isFinite(lastEndAudio)) lastEnd = lastEndAudio + msg.audioEndSeconds*1000;
+        if(Number.isFinite(lastEnd))speechEnds.set(msg.generation,lastEnd);
         return;
       }
-      if (msg.type === "reply") {playback.reply(msg.generation,msg.text.length);setRows(prev => [...prev.slice(-39), {role:"Agent",text:msg.text}]); setCart(msg.cart); return; }
+      if (msg.type === "reply") {playback.reply(msg.generation,msg.text.length);setRows(prev => [...prev.slice(-39), {role:"Agent",text:msg.text}]); setCart(msg.cart);setStatus(`Listening · ${model} · microphone stays on during replies`); return; }
       if(msg.type==="turn_log"){setLogs(prev=>[...prev.filter(row=>row.turnId!==msg.row.turnId),msg.row].slice(-200));return;}
       if (msg.type !== "ready") return;
       clearTimeout(connectTimer);
@@ -154,6 +166,8 @@ export default function StreamingVoice() {
     <table style={{width:"100%"}}><thead><tr><th>Stage (ms)</th><th>n</th><th>p50</th><th>p95</th></tr></thead><tbody>
       {([ ["Speech end → first audio byte", "totalMs"], ["STT endpointing + uplink", "endpointAndUplinkMs"], ["Engine", "engineMs"], ["TTS first byte", "ttsFirstByteMs"], ["Audio return network", "returnNetworkMs"], ["Browser/server RTT", "browserRttMs"], ["Clock uncertainty ±", "clockUncertaintyMs"] ] as const).map(([label,key]) => {const p=percentiles(timings.map(row=>row[key]));return <tr key={key}><td>{label}</td><td>{p.n}</td><td>{p.p50}</td><td>{p.p95}</td></tr>;})}
     </tbody></table>
+    <p>Playback times below include the audio queue. Informative audio excludes “Okay” and “One moment”.</p>
+    <table style={{width:"100%"}}><thead><tr><th>Speech end → playback (ms)</th><th>n</th><th>p50</th><th>p95</th></tr></thead><tbody>{([ ["First audio","speechToFirstPlaybackMs"],["First informative audio","speechToInformativePlaybackMs"] ] as const).map(([label,key])=>{const p=percentiles(logs.filter(row=>!row.endpointReason.includes("revised_by_continuation")).flatMap(row=>typeof row.audioTiming?.[key]==="number"?[row.audioTiming[key]!]:[]));return <tr key={key}><td>{label}</td><td>{p.n}</td><td>{p.p50}</td><td>{p.p95}</td></tr>;})}</tbody></table>
     <h2 style={{marginTop:20}}>Turn log</h2>
     <p>Callback turns and numbers are redacted. Logs stay in this tab; the server saves no caller audio or transcripts. Export before closing the tab, save privately under .data, and delete exports within thirty days.</p>
     <button className="btn btn-ghost" disabled={!logs.length} onClick={()=>{const url=URL.createObjectURL(new Blob([voiceCsv(logs)],{type:"text/csv;charset=utf-8"}));const link=document.createElement("a");link.href=url;link.download=`karahi-voice-${locationLabel.toLowerCase().replaceAll(" ","-")}-${model}.csv`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}}>Export turn log CSV</button>

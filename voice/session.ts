@@ -59,11 +59,16 @@ export class VoiceSession {
   private async reply(text: string, engineMs: number, finalAt: number, generation = this.generation) {
     if (this.closed) return;
     const abort = new AbortController(); this.abort = abort;
-    const requestedAt = performance.now(); let first = true,contentFirst=true,sentBytes=0;
+    const requestedAt = performance.now(); let first = true,contentFirst=true,sentBytes=0,kind:"neutral"|"informative"="informative",hasSegment=false;
     const audioPlan = this.tts.plan?.(text);
     this.emit({ type: "usage", ttsCharacters: audioPlan?.dynamicCharacters ?? text.length, generation, provider: this.tts.name });
     try {
-      for await (const chunk of this.tts.speak(text, abort.signal)) {
+      for await (const chunk of this.tts.speak(text, abort.signal,event=>{
+        if(abort.signal.aborted||generation!==this.generation||this.closed)return;
+        if(event.type==="segment"){kind=event.kind??"informative";hasSegment=true;this.emit({type:"audio_segment",generation,kind});}
+        if(event.type==="terminal_failure")this.emit({type:"error",code:"tts_failed",reason:event.reason,generation,recoverable:true,preservePlayback:true,message:"Voice output failed. The cached notice will play; read the reply below. Your microphone and order remain active."});
+        this.emit({type:"tts_telemetry",generation,event:{...event,observedMs:performance.now()-requestedAt}});
+      })) {
         if (abort.signal.aborted || generation !== this.generation || this.closed) break;
         if (!chunk.length) continue;
         const firstAt = performance.now();
@@ -71,7 +76,7 @@ export class VoiceSession {
           this.emit({ type: "audio_start", generation, sampleRate: 24000, finalAt, firstAt, engineMs, ttsFirstByteMs: firstAt - requestedAt, firstByteCached: audioPlan?.firstByteCached ?? false,acknowledgement:!!audioPlan?.acknowledgementBytes,acknowledgementBytes:audioPlan?.acknowledgementBytes??0 });
           first = false;
         }
-        if(contentFirst&&sentBytes>=(audioPlan?.acknowledgementBytes??0)){contentFirst=false;this.emit({type:"content_start",generation,at:performance.now(),finalAt,contentFirstByteMs:performance.now()-requestedAt});}
+        if(contentFirst&&(hasSegment?kind==="informative":sentBytes>=(audioPlan?.acknowledgementBytes??0))){contentFirst=false;this.emit({type:"content_start",generation,at:performance.now(),finalAt,contentFirstByteMs:performance.now()-requestedAt});}
         // A generation header on EVERY frame prevents audio from a cancelled reply resurfacing.
         const framed = Buffer.allocUnsafe(chunk.length + 4); framed.writeUInt32LE(generation, 0); chunk.copy(framed, 4);
         this.emit(framed);

@@ -2,14 +2,14 @@ import { performance } from "node:perf_hooks";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { createHash } from "node:crypto";
-import type { Tts } from "./contracts";
+import type { Tts,TtsObserver } from "./contracts";
 import { FIXED_PHRASES,AUDIO_IDENTITY } from "./audio-catalog";
 export { FIXED_PHRASES } from "./audio-catalog";
 type Part={text:string;cached:boolean;ack?:boolean};
 export class FixedAudioTts implements Tts {
  readonly name:string;readonly cacheIdentity=AUDIO_IDENTITY;
  private cache=new Map<string,Buffer[]>();private warming?:Promise<void>;private startupMs=0;private staticLoadMs=0;private source="disabled";
- constructor(private base:Tts,private enabled=true,private acknowledgement=process.env.VOICE_ACKNOWLEDGEMENT!=="false",private directory=path.resolve("public/voice-audio")){this.name=base.name;}
+ constructor(private base:Tts,private enabled=true,private acknowledgement=process.env.VOICE_ACKNOWLEDGEMENT!=="false",private directory=path.resolve("public/voice-audio"),private buffering={targetMs:300,shortCharacters:80,stallMs:1100}){this.name=base.name;}
  warm(){
   if(this.warming)return this.warming;
   this.warming=(async()=>{
@@ -37,35 +37,64 @@ export class FixedAudioTts implements Tts {
   while(at<text.length){
    let next:{at:number;text:string}|undefined;
    for(const phrase of FIXED_PHRASES){
-    if(phrase.id.startsWith("ack_"))continue;
+    if(phrase.id.startsWith("ack_")||phrase.id==="stall"||phrase.id==="failure")continue;
     const index=text.startsWith(phrase.text,at)?at:-1;if(index<0||noteAt>=0&&index>=noteAt)continue;
     const left=index===0||!/[a-z]/i.test(text[index-1]),end=index+phrase.text.length,right=!/[a-z]$/i.test(phrase.text)||end===text.length||!/[a-z]/i.test(text[end]);
     // Never turn a following question mark/period into its own TTS request.
     const rest=text.slice(end);if(rest&&!/[a-z0-9]/i.test(rest)&&/^(?:item_|modifier_)/.test(phrase.id))continue;
     if(left&&right&&(!next||index<next.at||index===next.at&&phrase.text.length>next.text.length))next={at:index,text:phrase.text};
    }
-   if(!next){result.push({text:text.slice(at),cached:false});break;}
+   if(!next){const rest=text.slice(at),suffix=FIXED_PHRASES.find(phrase=>phrase.id==="anything_else"&&rest.endsWith(phrase.text)&&rest.length>phrase.text.length);
+    if(suffix){result.push({text:rest.slice(0,-suffix.text.length),cached:false},{text:suffix.text,cached:true});}
+    else result.push({text:rest,cached:false});break;}
    result.push({text:next.text,cached:true});at=next.at+next.text.length;
   }
-  if(this.acknowledgement&&!result[0]?.cached)result.unshift({text:"Okay. ",cached:true,ack:true});
+  if(this.acknowledgement&&result.some(part=>!part.cached))result.unshift({text:"Okay. ",cached:true,ack:true});
   return result;
  }
  plan(text:string){const parts=this.parts(text);return {firstByteCached:!!parts[0]?.cached,cachedSegments:parts.filter(part=>part.cached).length,dynamicCharacters:parts.filter(part=>!part.cached).reduce((sum,part)=>sum+part.text.length,0),acknowledgementBytes:parts[0]?.ack?(this.cache.get(parts[0].text)?.reduce((sum,chunk)=>sum+chunk.length,0)??0):0};}
- stats(){return {enabled:this.enabled,ready:!this.enabled||this.cache.size===FIXED_PHRASES.length,entries:this.cache.size,bytes:[...this.cache.values()].flat().reduce((sum,chunk)=>sum+chunk.length,0),startupMs:this.startupMs,staticLoadMs:this.staticLoadMs,source:this.source,startupCharacters:0,acknowledgement:this.acknowledgement};}
- async *speak(text:string,signal:AbortSignal){
+ stats(){return {enabled:this.enabled,ready:!this.enabled||this.cache.size===FIXED_PHRASES.length,entries:this.cache.size,bytes:[...this.cache.values()].flat().reduce((sum,chunk)=>sum+chunk.length,0),startupMs:this.startupMs,staticLoadMs:this.staticLoadMs,source:this.source,startupCharacters:0,acknowledgement:this.acknowledgement,buffering:this.buffering};}
+ async *speak(text:string,signal:AbortSignal,observe?:TtsObserver){
   signal.throwIfAborted();const parts=this.parts(text),abort=new AbortController(),linked=AbortSignal.any([signal,abort.signal]);
-  let prefetched:{index:number;iterator:AsyncIterator<Buffer>;first:Promise<IteratorResult<Buffer>>}|undefined;
-  try{for(let i=0;i<parts.length;i++){
-   signal.throwIfAborted();const part=parts[i];
-   if(part.cached){
-    const next=parts.findIndex((part,index)=>index>i&&!part.cached);
-    if(!prefetched&&next>=0){const iterator=this.base.speak(parts[next].text,linked)[Symbol.asyncIterator](),first=iterator.next();first.catch(()=>{});prefetched={index:next,iterator,first};}
-    for(const chunk of this.cache.get(part.text)!){signal.throwIfAborted();yield chunk;}
-   }else if(prefetched?.index===i){
-    const current=prefetched;prefetched=undefined;let done=false;
-    try{let value=await current.first;while(!value.done){signal.throwIfAborted();yield value.value;value=await current.iterator.next();}done=true;}finally{if(!done)abort.abort();await current.iterator.return?.().catch(()=>{});}
-   }else yield* this.base.speak(part.text,linked);
-  }}finally{abort.abort();if(prefetched){await prefetched.first.catch(()=>{});await prefetched.iterator.return?.().catch(()=>{});}}
+  const informative=parts.filter(part=>!part.ack),short=text.length<=this.buffering.shortCharacters,hasRemote=informative.some(part=>!part.cached);
+  let queue:Buffer[]=[],bytes=0,done=false,failure:unknown,dynamicReady=!hasRemote,wake:()=>void=()=>{},availableUntil=performance.now();
+  const push=(chunk:Buffer)=>{queue.push(chunk);bytes+=chunk.length;wake();};
+  // Consume the provider independently of playback/yields, so synthesis keeps
+  // progressing while a neutral acknowledgement or stall prompt is playing.
+  const producer=(async()=>{try{for(const part of informative){
+    if(part.cached)for(const chunk of this.cache.get(part.text)!)push(chunk);
+    else for await(const chunk of this.base.speak(part.text,linked,observe)){dynamicReady=true;push(chunk);}
+  }}catch(error){failure=error;}finally{done=true;wake();}})();
+  try{
+   for(const part of parts.filter(part=>part.ack)){
+    observe?.({type:"segment",kind:"neutral"});
+    for(const chunk of this.cache.get(part.text)!){availableUntil=Math.max(availableUntil,performance.now())+chunk.length/48;yield chunk;}
+   }
+   while(true){
+    signal.throwIfAborted();
+    const ready=done||!short&&dynamicReady&&bytes>=this.buffering.targetMs*48;
+    if(ready&&bytes&&!(failure&&short)){
+      const batch=Buffer.concat(queue);queue=[];bytes=0;
+      observe?.({type:"jitter_ready",bufferedMs:batch.length/48,wholeShortReply:short});observe?.({type:"segment",kind:"informative"});
+      availableUntil=Math.max(availableUntil,performance.now())+batch.length/48;yield batch;
+    }
+    if(done){if(failure){
+      signal.throwIfAborted();const fallback=this.cache.get("I'm having trouble speaking. Please check the text reply.");
+      if(!fallback?.length)throw failure;
+      const reason=failure instanceof Error&&/timeout/i.test(failure.message)?"timeout":failure instanceof Error&&/connection|socket/i.test(failure.message)?"connection":"http";
+      observe?.({type:"terminal_failure",reason});observe?.({type:"segment",kind:"neutral"});
+      for(const chunk of fallback)yield chunk;return;
+    }break;}
+    const delay=Math.max(0,availableUntil+this.buffering.stallMs-performance.now());
+    let timer:ReturnType<typeof setTimeout>|undefined;
+    const result=await new Promise<"data"|"stall">((resolve)=>{wake=()=>resolve("data");timer=setTimeout(()=>resolve("stall"),delay);if(done||(!short&&dynamicReady&&bytes>=this.buffering.targetMs*48))resolve("data");});
+    clearTimeout(timer);wake=()=>{};signal.throwIfAborted();
+    if(result==="stall"&&!done){
+      const prompt=this.cache.get("One moment. ");if(prompt?.length){observe?.({type:"stall"});observe?.({type:"segment",kind:"neutral"});for(const chunk of prompt){availableUntil=Math.max(availableUntil,performance.now())+chunk.length/48;yield chunk;}}
+      else availableUntil=performance.now();
+    }
+   }
+  }finally{abort.abort();await producer;}
  }
  close(){this.base.close();this.cache.clear();}
 }
