@@ -13,6 +13,7 @@ import { KEYTERMS } from "../voice/stt";
 import { TurnRecorder } from "../voice/turn-recorder";
 import {runtimeInfo} from "../voice/runtime-info";
 import {endpointSettings} from "../voice/endpointing";
+import {DemoTicketService} from "../lib/demo-tickets";
 async function main() {
   const build={commit:"d".repeat(40),dirty:false},runtime=runtimeInfo(build,"flux",endpointSettings("flux"),{provider:"fixture",model:"fixture-tone"},KEYTERMS.length,750,"adaptive");
   const report:Record<string,any>={kind:"browser-transport-fixtures-not-live-STT-or-TTS",browser:"Microsoft Edge",location:"Lahore laptop localhost",recordingsStored:false};
@@ -27,11 +28,13 @@ async function main() {
     await new Promise(resolve=>setTimeout(resolve,25));
     for(let i=0;i<30;i++){signal.throwIfAborted();const pcm=Buffer.alloc(3840);for(let j=0;j<1920;j++)pcm.writeInt16LE(Math.sin(j/24000*440*Math.PI*2)*1500,j*2);yield pcm;await new Promise(resolve=>setTimeout(resolve,20));}
   }};
-  let turns=0,bargeIns=0;
+  let turns=0,bargeIns=0,connections=0;
+  const tickets=new DemoTicketService({env:{DEMO_NOTIFICATIONS_ENABLED:"true"}});
   wss.on("connection",ws=>{
+    const connectionId=++connections;
     const recorder=new TurnRecorder({callId:"fixture",location:"Lahore local",model:"flux",profile:"fixture",runtime},row=>{if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:"turn_log",row}));});
     const emit=(event:Record<string,unknown>|Buffer)=>{if(ws.readyState===WebSocket.OPEN)ws.send(Buffer.isBuffer(event)?event:JSON.stringify(event));if(!Buffer.isBuffer(event))recorder.event(event);};
-    const session=new VoiceSession(fixture,emit);let loud=0,quiet=0,speaking=false;
+    const session=new VoiceSession(fixture,emit,false,async(summary,callbackProvided,publish)=>{await tickets.submit(summary,{key:`browser-fixture/${connectionId}`,callbackProvided,sourceBuild:build.commit},publish).settled;});let loud=0,quiet=0,speaking=false;
     ws.on("message",(data,binary)=>{
       if(binary){const pcm=Buffer.from(data as Buffer);let sum=0;for(let i=0;i<pcm.length;i+=2)sum+=(pcm.readInt16LE(i)/32768)**2;
         if(Math.sqrt(sum/(pcm.length/2))>.025){loud++;quiet=0;if(loud===4)speaking=true;}
@@ -41,6 +44,7 @@ async function main() {
       if(msg.type==="fixture_failure")emit({type:"error",code:"tts_failed",recoverable:true});
       if(msg.type==="fixture_close"){emit({type:"error",code:"stt_audio_timeout"});ws.close(1011,"STT failed");}
       if(msg.type==="fixture_goodbye")void session.turn("goodbye");
+      if(msg.type==="fixture_script_order")void(async()=>{for(const phrase of ["one mango lassi","checkout","Synthetic Guest","yes"])await session.turn(phrase);})();
       if(msg.type==="start")emit({type:"ready",model:msg.model,tts:"fixture",runtime,sampleRate:16000,frameMs:80,keyterms:KEYTERMS.length});
       if(msg.type==="mic_ready")void session.greet();
       if(msg.type==="barge_in"){bargeIns++;session.interrupt({source:msg.source,energy:msg.energy,threshold:msg.threshold,speechMs:msg.speechMs});}
@@ -107,9 +111,13 @@ async function main() {
     await page.evaluate(()=>(window as any).__voiceFixture.sockets.at(-1).send(JSON.stringify({type:"fixture_goodbye"})));
     await page.getByRole("button",{name:"Start microphone"}).waitFor({state:"visible"});await page.waitForFunction(()=>!(document.querySelector("button.btn-primary") as HTMLButtonElement)?.disabled,{},{timeout:15000});
     report.goodbyeWaitsForPlaybackAndReleasesMic=true;
+    await page.getByRole("button",{name:"Start microphone"}).click();await page.getByRole("status").filter({hasText:"Listening"}).waitFor();
+    await page.evaluate(()=>(window as any).__voiceFixture.sockets.at(-1).send(JSON.stringify({type:"fixture_script_order"})));
+    await page.getByTestId("demo-ticket").waitFor({timeout:15000});assert.match(await page.getByTestId("demo-ticket").innerText(),/pending_acceptance/);assert.match(await page.getByTestId("demo-ticket").innerText(),/email is not configured/);
+    const ticketDownload=page.waitForEvent("download");await page.getByRole("button",{name:"Download redacted DEMO ticket"}).click();const ticketFile=await ticketDownload,ticketStream=await ticketFile.createReadStream(),ticketChunks=[];for await(const chunk of ticketStream!)ticketChunks.push(chunk);const downloaded=JSON.parse(Buffer.concat(ticketChunks).toString("utf8"));assert.equal(downloaded.label,"DEMO");assert.equal(downloaded.status,"pending_acceptance");assert.equal(downloaded.sms.sent,false);assert.equal(downloaded.sms.status,"simulated");assert.equal(downloaded.subtotalCents,450);report.confirmedDemoTicketAndDownload=true;
     report.ok=true;report.turns=turns;report.bargeIns=bargeIns;report.stoppedPlaybackSources=after;report.micReleased=released;report.latencyTableFixtureOnly=table;
   }catch(error){report.ok=false;report.failure=error instanceof Error?error.message:"Browser failed";}
-  finally{await browser.close();for(const ws of wss.clients)ws.terminate();wss.close();await new Promise<void>(resolve=>server.close(()=>resolve()));await app.close();writeFileSync("eval/results/voice-browser.json",JSON.stringify(report,null,2)+"\n");console.log(JSON.stringify(report,null,2));}
+  finally{await browser.close();tickets.clear();for(const ws of wss.clients)ws.terminate();wss.close();await new Promise<void>(resolve=>server.close(()=>resolve()));await app.close();writeFileSync("eval/results/voice-browser.json",JSON.stringify(report,null,2)+"\n");console.log(JSON.stringify(report,null,2));}
   if(!report.ok)process.exitCode=1;
 }
 void main().then(()=>process.exit(process.exitCode ?? 0));

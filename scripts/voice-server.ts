@@ -20,6 +20,7 @@ import { voiceErrorMessage } from "../voice/connection-status";
 import { qualifiedBargeIn } from "../voice/barge-in";
 import { execFileSync } from "node:child_process";
 import { runtimeInfo,type VoiceRuntimeInfo } from "../voice/runtime-info";
+import {demoTickets} from "../lib/demo-tickets";
 
 async function main() {
 const bootStarted=performance.now();
@@ -127,7 +128,10 @@ wss.on("connection", (ws,request) => {
       await warm;
       if (warmError) throw Error(warmError);
       if (ws.readyState !== WebSocket.OPEN) return;
-      session = new VoiceSession(tts, emit, process.env.VOICE_FAQ_ENABLED === "true");
+      session = new VoiceSession(tts, emit, process.env.VOICE_FAQ_ENABLED === "true",async(summary,callbackProvided,publish)=>{
+        const submission=demoTickets.submit(summary,{key:`voice/${meta.callId}`,callbackProvided,sourceBuild:build.commit},publish);
+        await submission.settled;
+      });
       const completeMs=Number(process.env.VOICE_ADAPTIVE_COMPLETE_MS||adaptiveWait(model).completeMs);
       if(!Number.isInteger(completeMs)||completeMs<100||completeMs>1600)throw Error("Invalid adaptive wait");
       const adaptive={...DEFAULT_ADAPTIVE,completeMs};

@@ -14,6 +14,8 @@
 // A live mic level meter shows the user their microphone is actually working.
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import type {DemoTicket} from "@/lib/demo-ticket-types";
+import DemoTicketView from "./DemoTicketView";
 
 interface Match {
   itemId: string;
@@ -70,6 +72,7 @@ export default function VoiceDemo() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
+  const [demoTicket,setDemoTicket]=useState<DemoTicket|null>(null);
   const [accent, setAccent] = useState("en-IN");
   const [typed, setTyped] = useState("");
   const [micError, setMicError] = useState("");
@@ -307,6 +310,7 @@ export default function VoiceDemo() {
           return [...copy, { role: "agent", text: data.reply }];
         });
         if (data.summary) setSummary(data.summary);
+        if (data.ticket) setDemoTicket(data.ticket);
         speak(data.reply, () => {
           if (data.endCall) {
             endCallRef.current();
@@ -348,6 +352,7 @@ export default function VoiceDemo() {
     setTurns([]);
     setCart([]);
     setSummary(null);
+    setDemoTicket(null);
     stateRef.current = null;
     historyRef.current = [];
     bufferRef.current = "";
@@ -524,7 +529,8 @@ export default function VoiceDemo() {
             </div>
           )}
 
-          {summary && (
+          {demoTicket&&<DemoTicketView ticket={demoTicket}/>}
+          {summary && !demoTicket && (
             <div className="summary-card">
               <h4>Demo request — pending staff acceptance</h4>
               {[

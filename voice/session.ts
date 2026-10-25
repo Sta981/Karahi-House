@@ -3,7 +3,8 @@ import { runSmartTurn } from "../lib/brain";
 import { GREETING, newState } from "../lib/dialog";
 import { getItem,MODIFIERS } from "../lib/menu";
 import type { Emit, Tts } from "./contracts";
-import type { DialogState } from "../lib/dialog";
+import type { DialogState,CallSummary } from "../lib/dialog";
+import type {DemoTicket} from "../lib/demo-ticket-types";
 import { rollbackCartOperations,type CartOperation } from "../lib/cart-journal";
 import type { BargeTrigger } from "./barge-in";
 
@@ -13,7 +14,7 @@ export class VoiceSession {
   private abort?: AbortController;
   private closed = false;
   private checkpoint?:{before:DialogState;text:string;operations:CartOperation[];committed:boolean;generation:number};
-  constructor(private tts: Tts, private emit: Emit, private faqEnabled = false) {}
+  constructor(private tts: Tts, private emit: Emit, private faqEnabled = false,private onConfirmed?:(summary:CallSummary,callbackProvided:boolean,publish:(ticket:DemoTicket)=>void)=>Promise<void>) {}
   endpointAnswers():string[]{
     if(this.state.pending)return ["Half","Full","have","haf","fool","bot"];
     if(this.state.phase==="ask_spice")return [...MODIFIERS.spice_level.options,"mild","medium","hot"];
@@ -60,7 +61,12 @@ export class VoiceSession {
     const engineMs = performance.now() - start;
     const usedCpu=process.cpuUsage(cpu);
     this.emit({ type: "reply", text: result.reply, cart: this.state.cart, generation, usedLLM: result.usedLLM, engineMs,engineProfile:{...engineProfile,cpuMs:(usedCpu.user+usedCpu.system)/1000,phase:checkpoint.before.phase,cartLinesBefore:checkpoint.before.cart.length},supersedesGeneration, finalAt, endpointReason, speculativeHit:false, preparationMs:0 });
+    const notification=result.endCall&&result.summary?.kind==="order"&&this.onConfirmed?
+      this.onConfirmed(result.summary,!!this.state.callbackNumber,ticket=>this.emit({type:"demo_ticket",ticket})).catch(()=>{this.emit({type:"notification_error",message:"The DEMO notification failed. The order has not been accepted."});}):undefined;
     await this.reply(result.reply, engineMs, finalAt, generation);
+    // Email runs alongside speech. Wait only before releasing the final call,
+    // so its final receipt can reach the tab; first-audio latency is unaffected.
+    if(notification)await notification;
     if(result.endCall&&generation===this.generation&&!this.closed)this.emit({type:"call_end",generation,summary:result.summary});
   }
   private async reply(text: string, engineMs: number, finalAt: number, generation = this.generation) {

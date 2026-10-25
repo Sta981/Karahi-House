@@ -6,6 +6,8 @@ import { recoverableVoiceError,voiceErrorMessage } from "@/voice/connection-stat
 import { BARGE_IN_DEFAULTS,type BargeTrigger } from "@/voice/barge-in";
 import { PlaybackLedger } from "@/voice/playback";
 import type { VoiceRuntimeInfo } from "@/voice/runtime-info";
+import type {DemoTicket} from "@/lib/demo-ticket-types";
+import DemoTicketView from "./DemoTicketView";
 
 type Timing = { totalMs: number; endpointAndUplinkMs: number; engineMs: number; ttsFirstByteMs: number; returnNetworkMs: number; browserRttMs: number; clockUncertaintyMs: number };
 function percentiles(values: number[]) { const sorted = [...values].sort((a,b) => a-b); return { n: sorted.length, p50: sorted[Math.max(0, Math.ceil(sorted.length*.5)-1)]?.toFixed(1) ?? "—", p95: sorted[Math.max(0, Math.ceil(sorted.length*.95)-1)]?.toFixed(1) ?? "—" }; }
@@ -15,6 +17,7 @@ export default function StreamingVoice() {
   const [requiresAccessCode,setRequiresAccessCode]=useState(false),[partial,setPartial]=useState(""),[micLevel,setMicLevel]=useState(0);
   const [intended,setIntended]=useState<Record<string,string>>({});
   const [ignoreInterruptions,setIgnoreInterruptions]=useState(false),[ticket,setTicket]=useState<unknown>(null);
+  const [demoTicket,setDemoTicket]=useState<DemoTicket|null>(null);
   const [build,setBuild]=useState<{commit:string;dirty:boolean}|null>(null),[runtime,setRuntime]=useState<VoiceRuntimeInfo|null>(null);
   const [rows, setRows] = useState<{role:string;text:string}[]>([]), [cart, setCart] = useState<any[]>([]), [timings, setTimings] = useState<Timing[]>([]);
   const cleanup = useRef<() => void>(() => {}); const interrupt = useRef<(trigger?:BargeTrigger) => void>(() => {});
@@ -24,7 +27,7 @@ export default function StreamingVoice() {
     return ()=>{abort.abort();cleanup.current();};
   }, []);
   async function connect() {
-    cleanup.current(); setTicket(null);setTimings([]); setRows([]); setCart([]); setLogs([]);setIntended({});setPartial("");setMicLevel(0);setStatus("Opening microphone…"); setActive(true);
+    cleanup.current(); setTicket(null);setDemoTicket(null);setTimings([]); setRows([]); setCart([]); setLogs([]);setIntended({});setPartial("");setMicLevel(0);setStatus("Opening microphone…"); setActive(true);
     let context: AudioContext | undefined, stream: MediaStream | undefined, worklet: AudioWorkletNode | undefined, capture: MediaStreamAudioSourceNode | undefined;
     let socket:WebSocket|undefined,pingTimer:ReturnType<typeof setInterval>|undefined,connectTimer:ReturnType<typeof setTimeout>|undefined;
     let stopped = false, ready = false, generation = -1, minGeneration = 0, blocked = false, scheduled = 0, sync = { rtt: Infinity, offset: 0 };
@@ -126,6 +129,8 @@ export default function StreamingVoice() {
       if(msg.type==="audio_segment"){segmentKinds.set(msg.generation,msg.kind==="neutral"?"neutral":"informative");return;}
       if(msg.type==="tts_telemetry"&&msg.event?.type==="stall"){playback.stall(msg.generation);return;}
       if(msg.type==="cart_revision"){setCart(msg.cart);return;}
+      if(msg.type==="demo_ticket"){setDemoTicket(msg.ticket);return;}
+      if(msg.type==="notification_error"){setStatus(msg.message);return;}
       if(msg.type==="call_end"){if(msg.summary)setTicket(msg.summary);endingGeneration=msg.generation;publishPlayback(msg.generation);return;}
       if (msg.type === "interrupt") { stopAudio({source:msg.source==="continuation"?"continuation":"server_turn"}); generation = msg.generation; blocked = true; return; }
       if (msg.type === "audio_start") {
@@ -182,7 +187,7 @@ export default function StreamingVoice() {
     <table style={{width:"100%"}}><thead><tr><th>TTS / gap (ms)</th><th>n</th><th>p50</th><th>p95</th></tr></thead><tbody>{([ ["Ack first byte",logs.flatMap(row=>row.ackFirstByteMs===undefined?[]:[row.ackFirstByteMs])],["Content first byte (tts_content_first_byte_ms)",logs.flatMap(row=>row.contentFirstByteMs===undefined?[]:[row.contentFirstByteMs])],["Ack end → content playback gap",logs.flatMap(row=>row.playback?.acknowledgementGapMs==null?[]:[row.playback.acknowledgementGapMs])] ] as [string,number[]][]).map(([label,values])=>{const p=percentiles(values);return <tr key={label}><td>{label}</td><td>{p.n}</td><td>{p.p50}</td><td>{p.p95}</td></tr>;})}</tbody></table>
     <p>Playback times below include the audio queue. Informative audio excludes “Okay” and “One moment”.</p>
     <table style={{width:"100%"}}><thead><tr><th>Speech end → playback (ms)</th><th>n</th><th>p50</th><th>p95</th></tr></thead><tbody>{([ ["First audio","speechToFirstPlaybackMs"],["First informative audio","speechToInformativePlaybackMs"] ] as const).map(([label,key])=>{const p=percentiles(logs.filter(row=>!row.endpointReason.includes("revised_by_continuation")).flatMap(row=>typeof row.audioTiming?.[key]==="number"?[row.audioTiming[key]!]:[]));return <tr key={key}><td>{label}</td><td>{p.n}</td><td>{p.p50}</td><td>{p.p95}</td></tr>;})}</tbody></table>
-    {ticket!=null&&<><h2>Final demo ticket</h2><pre>{JSON.stringify(ticket,null,2)}</pre></>}
+    {demoTicket?<DemoTicketView ticket={demoTicket}/>:ticket!=null&&<><h2>Final demo ticket</h2><pre>{JSON.stringify(ticket,null,2)}</pre></>}
     <h2 style={{marginTop:20}}>Turn log</h2>
     <p>Callback turns and numbers are redacted. Logs stay in this tab; the server saves no caller audio or transcripts. Export before closing the tab, save privately under .data, and delete exports within thirty days.</p>
     <button className="btn btn-ghost" disabled={!logs.length} onClick={()=>{const url=URL.createObjectURL(new Blob([voiceCsv(logs)],{type:"text/csv;charset=utf-8"}));const link=document.createElement("a");link.href=url;link.download=`karahi-voice-${locationLabel.toLowerCase().replaceAll(" ","-")}-${model}.csv`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}}>Export turn log CSV</button>
