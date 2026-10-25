@@ -11,11 +11,14 @@ import { VoiceSession } from "../voice/session";
 import type { Tts } from "../voice/contracts";
 import { KEYTERMS } from "../voice/stt";
 import { TurnRecorder } from "../voice/turn-recorder";
+import {runtimeInfo} from "../voice/runtime-info";
+import {endpointSettings} from "../voice/endpointing";
 async function main() {
+  const build={commit:"d".repeat(40),dirty:false},runtime=runtimeInfo(build,"flux",endpointSettings("flux"),{provider:"fixture",model:"fixture-tone"},KEYTERMS.length,750,"adaptive");
   const report:Record<string,any>={kind:"browser-transport-fixtures-not-live-STT-or-TTS",browser:"Microsoft Edge",location:"Lahore laptop localhost",recordingsStored:false};
   const app=next({dev:true,hostname:"127.0.0.1",port:3101});await app.prepare();
   const handler=app.getRequestHandler(),server=createServer((req,res)=>{
-    if(req.url==="/voice-health"){res.setHeader("Content-Type","application/json");res.end(JSON.stringify({ok:true,requiresAccessCode:false}));return;}
+    if(req.url==="/voice-health"){res.setHeader("Content-Type","application/json");res.end(JSON.stringify({ok:true,requiresAccessCode:false,build}));return;}
     void handler(req,res);
   });
   const wss=new WebSocketServer({noServer:true});
@@ -26,7 +29,7 @@ async function main() {
   }};
   let turns=0,bargeIns=0;
   wss.on("connection",ws=>{
-    const recorder=new TurnRecorder({callId:"fixture",location:"Lahore local",model:"flux",profile:"fixture"},row=>{if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:"turn_log",row}));});
+    const recorder=new TurnRecorder({callId:"fixture",location:"Lahore local",model:"flux",profile:"fixture",runtime},row=>{if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:"turn_log",row}));});
     const emit=(event:Record<string,unknown>|Buffer)=>{if(ws.readyState===WebSocket.OPEN)ws.send(Buffer.isBuffer(event)?event:JSON.stringify(event));if(!Buffer.isBuffer(event))recorder.event(event);};
     const session=new VoiceSession(fixture,emit);let loud=0,quiet=0,speaking=false;
     ws.on("message",(data,binary)=>{
@@ -38,7 +41,7 @@ async function main() {
       if(msg.type==="fixture_failure")emit({type:"error",code:"tts_failed",recoverable:true});
       if(msg.type==="fixture_close"){emit({type:"error",code:"stt_audio_timeout"});ws.close(1011,"STT failed");}
       if(msg.type==="fixture_goodbye")void session.turn("goodbye");
-      if(msg.type==="start")emit({type:"ready",model:msg.model,tts:"fixture",sampleRate:16000,frameMs:80,keyterms:KEYTERMS.length});
+      if(msg.type==="start")emit({type:"ready",model:msg.model,tts:"fixture",runtime,sampleRate:16000,frameMs:80,keyterms:KEYTERMS.length});
       if(msg.type==="mic_ready")void session.greet();
       if(msg.type==="barge_in"){bargeIns++;session.interrupt({source:msg.source,energy:msg.energy,threshold:msg.threshold,speechMs:msg.speechMs});}
       if(msg.type==="playback")recorder.playback(msg.generation,msg.metrics);
@@ -68,6 +71,7 @@ async function main() {
     await page.goto("http://127.0.0.1:3101/voice");assert.equal(await page.getByLabel("Hosted demo access code").count(),0);await page.getByLabel("Recognition model").selectOption("flux");await page.getByRole("button",{name:"Start microphone"}).click();
     try{await page.getByRole("status").filter({hasText:"Listening"}).waitFor({timeout:30000});}catch(error){report.setupStatus=await page.getByRole("status").innerText();report.pageErrors=failures;throw error;}
     assert.equal(await page.evaluate(()=>(window as any).__voiceFixture.socketBeforeMic),false);report.microphoneBeforeStt=true;report.localPasswordHidden=true;
+    assert.ok((await page.getByTestId("voice-build").innerText()).includes(build.commit));assert.match(await page.getByTestId("voice-runtime").innerText(),/flux-general-en.*750 ms.*fixture-tone/);report.runtimeProvenanceVisible=true;
     await page.waitForTimeout(150);const initialStops=await page.evaluate(()=>(window as any).__voiceFixture.stops);
     await page.evaluate(()=>(window as any).__voiceFixture.speak());
     await page.waitForFunction(()=>document.body.innerText.includes("× Rice"),{},{timeout:15000});
@@ -92,6 +96,7 @@ async function main() {
     assert.ok(report.playback.some((row:any)=>row.finished),"Last browser playback source must finish naturally");
     assert.ok(report.playback.some((row:any)=>row.interruptedByBargeIn&&row.trigger?.source==="browser_vad"&&row.trigger?.speechMs>=480));
     assert.match(csv,/playback_finished/);assert.match(csv,/engine_profile/);
+    assert.match(csv,/build_commit/);assert.ok(csv.includes(build.commit));assert.match(csv,/endpoint_settings/);assert.match(csv,/fixture-tone/);assert.ok(correctionCsv.includes(build.commit));report.runtimeProvenanceInBothExports=true;
     await page.evaluate(()=>(window as any).__voiceFixture.sockets[0].send(JSON.stringify({type:"fixture_close"})));
     await page.getByRole("status").filter({hasText:"stopped receiving microphone audio"}).waitFor();assert.equal(await page.getByRole("button",{name:"Start microphone"}).isEnabled(),true);report.disconnectReasonPreserved=true;
     const released=await page.evaluate(()=>(window as any).__voiceFixture.tracks.every((track:MediaStreamTrack)=>track.readyState==="ended"));assert.equal(released,true);assert.deepEqual(failures,[]);

@@ -509,6 +509,13 @@ export function analyzeUtterance(text: string): RecognitionAnalysis {
     if (hasExact(start,end)) return;
     clarify(start,end,idsFor(item => /pakora/i.test(item.name)), "Did you mean Fish Pakora?");
   });
+  find(/\bburger\b/g, (start,end) => {
+    if(hasExact(start,end))return;
+    const items=MENU.filter(item=>/burger/i.test(item.name));
+    if(items.length===1){const item=items[0];clarify(start,end,[item.id],`${item.name}, $${(item.price_cents/100).toFixed(2)}. Add it?`);}
+    else if(items.length)clarify(start,end,items.map(item=>item.id),`Which burger: ${items.map(item=>item.name).join(" or ")}?`);
+    else add("unavailable","not_on_menu",start,end,[],"Burger isn't on this menu. Would you like to hear the Kids menu?");
+  });
   find(/\b(?:chicken|chikan|chiken)\s+curry\b/g,(start,end) =>
     clarify(start,end,idsFor(item => item.protein === "Chicken" && (/Karahi|Korma|Tikka Masala/i.test(item.family ?? ""))), "Which chicken dish: karahi, tikka masala or korma?"));
 

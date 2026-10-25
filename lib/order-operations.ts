@@ -56,13 +56,15 @@ export function segmentLocalCorrection(text:string):OrderSegment[]{
   return segments;
 }
 export function targetIndexes(entries:OrderEntry[],text:string):number[]{
-  if(/\b(?:no|without|notes?)\b/i.test(text))return [];
+  const note=text.match(/\b(?:no|without|notes?)\b.*$/i)?.[0];
+  const matchingNotes=note?new Set(entries.flatMap((entry,index)=>(entry.notes??[]).some(value=>speechText(value)===speechText(note))?[index]:[])):undefined;
+  if(note&&!matchingNotes!.size)return [];
   if(/\bhot\b/i.test(text))return [];
   const spice=/\bextra spicy\b/i.test(text)?"Extra Spicy":/\bmild\b/i.test(text)?"Mild Spice":/\bmedium\b/i.test(text)?"Medium Spice":/\bspicy\b/i.test(text)?"Spicy":undefined;
   const portion=extractVariantHints(text).portion;
-  const words=speechTokens(text).filter(word=>!["the","a","an","it","that","last","one","two","three","four","five","make","to","hi","now","lead","name","please","item","dish","spice","mild","medium","extra","spicy","half","full"].includes(word)&&!/^\d+$/.test(word));
+  const words=speechTokens(note?text.slice(0,text.indexOf(note)):text).filter(word=>!["the","a","an","it","that","last","one","two","three","four","five","make","to","hi","now","lead","name","please","item","dish","spice","mild","medium","extra","spicy","half","full","only","just","i","wanted","want","need","is","enough","quantity","total"].includes(word)&&!/^\d+$/.test(word));
   if(!words.length)return /\b(?:it|that|last)\b/i.test(text)&&entries.length?[entries.length-1]:[];
-  const ranked=entries.map((entry,index)=>({index,score:spice&&entry.spiceLevel!==spice||portion&&entry.portion!==portion?0:Math.max(...TARGET_LABELS.get(entry.itemId)!.map(tokens=>words.reduce((score,word)=>{
+  const ranked=entries.map((entry,index)=>({index,score:matchingNotes&&!matchingNotes.has(index)||spice&&entry.spiceLevel!==spice||portion&&entry.portion!==portion?0:Math.max(...TARGET_LABELS.get(entry.itemId)!.map(tokens=>words.reduce((score,word)=>{
     const best=Math.max(0,...tokens.map(token=>token===word?1:similarity(word,token)>=.86?.8:0));return score+best;
   },0)))})).sort((a,b)=>b.score-a.score);
   const best=ranked[0]?.score??0;
@@ -90,13 +92,17 @@ export function planLocalCorrection(text:string,initial:OrderEntry[],analyze:(te
     blockedSegment=segment;
     if(segment.action==="remove"){
       const indexes=/\b(?:everything|whole order|all items|entire order)\b/i.test(segment.text)?entries.map((_,i)=>i):targetIndexes(entries,segment.text);
-      if(indexes.length!==1&&!/\b(?:everything|whole order|all items|entire order)\b/i.test(segment.text))return finish("Which existing item should I remove?");
+      const whole=/\b(?:everything|whole order|all items|entire order)\b/i.test(segment.text);
+      const key=(entry:OrderEntry)=>JSON.stringify([entry.itemId,entry.portion??null,entry.spiceLevel??null,[...(entry.notes??[])].sort()]);
+      if(indexes.length!==1&&!whole&&new Set(indexes.map(index=>key(entries[index]))).size!==1)return finish("Which existing item should I remove?");
       if(!indexes.length)return finish("Which existing item should I remove?");
       const qty=extractQuantityHint(segment.text);
-      if(qty!==undefined&&indexes.length===1){
-        const index=indexes[0];
-        if(!Number.isSafeInteger(qty)||qty<1||qty>entries[index].qty)return finish("How many of that existing item should I remove?");
-        if(qty<entries[index].qty){entries[index]={...entries[index],qty:entries[index].qty-qty,changed:true};continue;}
+      if(qty!==undefined&&!whole){
+        const available=indexes.reduce((sum,index)=>sum+entries[index].qty,0);
+        if(!Number.isSafeInteger(qty)||qty<1||qty>available)return finish("How many of that existing item should I remove?");
+        let remaining=qty;
+        for(const index of indexes){const count=Math.min(remaining,entries[index].qty);entries[index]={...entries[index],qty:entries[index].qty-count,changed:count>0||entries[index].changed};remaining-=count;}
+        entries=entries.filter(entry=>entry.qty>0);continue;
       }
       entries=entries.filter((_,index)=>!indexes.includes(index));continue;
     }

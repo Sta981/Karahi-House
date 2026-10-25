@@ -29,7 +29,7 @@ test("tied removal names enumerate cart lines; a later partial answer removes on
  let result=call("two garlic naan and one plain naan mild spice","remove naan");
  assert.equal(result.state.cart.length,2);assert.match(result.reply,/You have.*Garlic Naan.*Plain Naan/);
  result=runTurn(result.state,"garlic please");assert.ok(result.state.removalConfirmation);result=runTurn(result.state,"yes");assert.equal(result.state.cart.length,1);assert.match(result.reply,/Removed 2 Garlic Naan/);
- const uncertain=call("one garlic naan mild spice and one mango lassi","remove the garlic coconut dish");assert.equal(uncertain.state.cart.length,2);assert.ok(uncertain.state.pendingCorrection);assert.doesNotMatch(uncertain.reply,/You have/);
+ const uncertain=call("one garlic naan mild spice and one mango lassi","remove the garlic coconut dish");assert.equal(uncertain.state.cart.length,2);assert.ok(uncertain.state.pendingCorrection);assert.match(uncertain.reply,/You have.*Garlic Naan.*Mango Lassi/);
 });
 test("pending size accepts constrained STT answers; those words do not create dishes",()=>{
  for(const [heard,size]of [["haf please","Half"],["fool please","Full"],["have","Half"]]){

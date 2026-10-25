@@ -18,9 +18,12 @@ import type { SttModel, SttStream } from "../voice/contracts";
 import { demoAccessCode,isLoopback,requiresVoiceToken,validVoiceOrigin } from "../voice/access";
 import { voiceErrorMessage } from "../voice/connection-status";
 import { qualifiedBargeIn } from "../voice/barge-in";
+import { execFileSync } from "node:child_process";
+import { runtimeInfo,type VoiceRuntimeInfo } from "../voice/runtime-info";
 
 async function main() {
 const bootStarted=performance.now();
+const build=(()=>{try{return {commit:execFileSync("git",["rev-parse","HEAD"],{encoding:"utf8",stdio:["ignore","pipe","ignore"]}).trim(),dirty:!!execFileSync("git",["status","--porcelain"],{encoding:"utf8",stdio:["ignore","pipe","ignore"]}).trim()};}catch{return {commit:"unknown",dirty:true};}})();
 if (existsSync(".env.local")) loadEnvFile(".env.local");
 const port = Number(process.env.PORT || 3000);
 const locationLabel=process.env.VOICE_DEPLOYMENT_LABEL|| (process.env.RENDER==="true"?"US-hosted":"Lahore local");
@@ -50,7 +53,7 @@ const server = createServer((req, res) => {
     res.setHeader("Content-Type", "application/json"); res.setHeader("Cache-Control", "no-store");
     res.statusCode=!warmError&&readyMs!==null?200:503;
     res.end(JSON.stringify({
-      ok:!warmError&&readyMs!==null,tts:ttsName,ttsTransport:ttsName==="aura-2"?(process.env.VOICE_AURA_TRANSPORT?.trim()||"http"):"local",stt:["flux","nova-3","nova-3-en-IN"],location:locationLabel,
+      ok:!warmError&&readyMs!==null,build,tts:ttsName,ttsTransport:ttsName==="aura-2"?(process.env.VOICE_AURA_TRANSPORT?.trim()||"http"):"local",stt:["flux","nova-3","nova-3-en-IN"],location:locationLabel,
       keyterms:KEYTERMS.length,keyPresent:!!process.env.DEEPGRAM_API_KEY?.trim(),faqEnabled:process.env.VOICE_FAQ_ENABLED==="true",
       recordingsStored:false,transcriptsPersisted:false,fixedAudio:tts.stats(),startup:{nextReadyMs,readyMs},
       requiresAccessCode:publicRequest,localLogs:logToDisk,endpointProfile:process.env.VOICE_ENDPOINT_PROFILE||"baseline",
@@ -73,7 +76,7 @@ wss.on("connection", (ws,request) => {
   if(wss.clients.size>1){ws.send(JSON.stringify({type:"error",code:"voice_busy",message:voiceErrorMessage("voice_busy")}));ws.close(1013,"Another call is active");return;}
   let stt: SttStream | undefined, session: VoiceSession | undefined, guard: ContinuationGuard | undefined, starting = false, active = false, frames = 0;
   const endpointProbes:ContinuationGuard[]=[];
-  const meta={callId:randomUUID(),location:locationLabel,model:"",profile:""};
+  const meta:{callId:string;location:string;model:string;profile:string;runtime?:VoiceRuntimeInfo}={callId:randomUUID(),location:locationLabel,model:"",profile:""};
   const publish=(row:VoiceLogRow)=>{
     if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify({type:"turn_log",row}));
   };
@@ -130,6 +133,7 @@ wss.on("connection", (ws,request) => {
       const adaptive={...DEFAULT_ADAPTIVE,completeMs};
       const wait=process.env.VOICE_ENDPOINT_MODE==="fixed"?1600:adaptive;
       const profile = endpointSettings(model,process.env.VOICE_ENDPOINT_PROFILE||"baseline");
+      meta.runtime=runtimeInfo(build,model,profile,{provider:ttsName,model:ttsName==="aura-2"?"aura-2-thalia-en":"kokoro-82m"},KEYTERMS.length,completeMs,typeof wait==="number"?"fixed":"adaptive");
       meta.model=model;meta.profile=`${profile.id}+${typeof wait==="number"?"fixed1600":`adaptive${completeMs}`}`;
       guard = new ContinuationGuard(wait,event=>void session?.turn(event.text,event.audioEndSeconds,event.endpointReason,event.continuationOf?{of:event.continuationOf,fragment:event.fragment??""}:undefined),{windowMs:2200,onResume:()=>session?.interrupt({source:"continuation"})},()=>session?.endpointAnswers()??[]);
       // Optional read-only paired guard study: identical PCM/provider finals,
@@ -147,7 +151,7 @@ wss.on("connection", (ws,request) => {
       },profile);
       if (ws.readyState !== WebSocket.OPEN) { stop(); return; }
       active = true;
-      emit({ type: "ready", model, tts: ttsName, sampleRate: 16000, frameMs: 80, keyterms: KEYTERMS.length, recordingsStored: false, endpointProfile: profile.id, endpointMode:typeof wait==="number"?"fixed":"adaptive",speculationEnabled:false,location:locationLabel,localLogs:logToDisk });
+      emit({ type: "ready", model, tts: ttsName, runtime:meta.runtime, sampleRate: 16000, frameMs: 80, keyterms: KEYTERMS.length, recordingsStored: false, endpointProfile: profile.id, endpointMode:typeof wait==="number"?"fixed":"adaptive",speculationEnabled:false,location:locationLabel,localLogs:logToDisk });
     } catch {
       emit({ type: "error", code: "voice_start_failed", message: warmError || "Could not connect to Deepgram. Check the key, credits and network; no fallback provider was called." });
       stop(); ws.close(1011, "Voice start failed");

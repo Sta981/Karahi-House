@@ -1,6 +1,7 @@
 // Shared, browser-safe log format. No audio, callback number or customer fields.
 import { redactPhoneNumbers } from "../lib/privacy";
 import type { PlaybackMetrics } from "./playback";
+import type { VoiceRuntimeInfo } from "./runtime-info";
 export type LatencyStages = { totalMs: number; endpointAndUplinkMs: number; engineMs: number; ttsFirstByteMs: number; returnNetworkMs: number; browserRttMs: number; clockUncertaintyMs: number };
 export type VoiceLogRow = {
   turnId: string; atUtc: string; location: string; model: string; endpointProfile: string;
@@ -12,6 +13,7 @@ export type VoiceLogRow = {
   audioTiming?:{speechToFirstByteMs?:number;speechToFirstPlaybackMs?:number;speechToInformativeByteMs?:number;speechToInformativePlaybackMs?:number};
   ttsChunks?:Record<string,number|string|boolean>[];
   engineProfile?:{recognitionMs:number;dialogMs:number;wallMs:number;cpuMs:number;phase:string;cartLinesBefore:number};
+  runtime?:VoiceRuntimeInfo;
 };
 export function safeTranscript(text:string) {
   // Even spoken-out callback numbers must not enter logs. Display in the live
@@ -35,5 +37,6 @@ export function csvCell(value:unknown) {
 export function voiceCsv(rows:VoiceLogRow[]) {
   const fields=["turn_id","at_utc","location","model","endpoint_profile","transcript_redacted","matched_cart","endpoint_reason","status","first_byte_cached","speculative_hit","preparation_ms","total_ms","stt_endpointing_uplink_ms","engine_ms","tts_first_byte_ms","return_network_ms","browser_rtt_ms","clock_uncertainty_ms","acknowledgement","tts_content_first_byte_ms","reply_text_length","playback_finished","interrupted_by_barge_in","barge_in_source","barge_in_energy","dropped_tts_chunks","late_tts_chunks","acknowledgement_gap_ms","playback_metrics"];
   fields.push("engine_profile","max_playback_gap_ms","gap_count_80ms","stall_prompts","first_playback_ms","first_informative_byte_ms","first_informative_playback_ms","tts_chunk_timing","ack_first_byte_ms");
-  return [fields.map(csvCell).join(","),...rows.map(row=>[row.turnId,row.atUtc,row.location,row.model,row.endpointProfile,safeTranscript(row.transcript),row.matchedCart,row.endpointReason,row.status,row.firstByteCached,row.speculativeHit,row.preparationMs,row.latency?.totalMs,row.latency?.endpointAndUplinkMs,row.engineMs,row.ttsFirstByteMs,row.latency?.returnNetworkMs,row.latency?.browserRttMs,row.latency?.clockUncertaintyMs,row.acknowledgement??false,row.contentFirstByteMs,row.replyTextLength,row.playback?.finished,row.playback?.interruptedByBargeIn,row.playback?.trigger?.source,row.playback?.trigger?.energy,row.playback?.droppedChunks,row.playback?.lateChunks,row.playback?.acknowledgementGapMs,row.playback,row.engineProfile,row.playback?.maxGapMs,row.playback?.gapCount,row.playback?.stallPrompts,row.audioTiming?.speechToFirstPlaybackMs,row.audioTiming?.speechToInformativeByteMs,row.audioTiming?.speechToInformativePlaybackMs,row.ttsChunks,row.ackFirstByteMs].map(csvCell).join(","))].join("\r\n")+"\r\n";
+  fields.push("build_commit","build_dirty","stt_config","endpoint_settings","tts_provider","tts_model");
+  return [fields.map(csvCell).join(","),...rows.map(row=>[row.turnId,row.atUtc,row.location,row.model,row.endpointProfile,safeTranscript(row.transcript),row.matchedCart,row.endpointReason,row.status,row.firstByteCached,row.speculativeHit,row.preparationMs,row.latency?.totalMs,row.latency?.endpointAndUplinkMs,row.engineMs,row.ttsFirstByteMs,row.latency?.returnNetworkMs,row.latency?.browserRttMs,row.latency?.clockUncertaintyMs,row.acknowledgement??false,row.contentFirstByteMs,row.replyTextLength,row.playback?.finished,row.playback?.interruptedByBargeIn,row.playback?.trigger?.source,row.playback?.trigger?.energy,row.playback?.droppedChunks,row.playback?.lateChunks,row.playback?.acknowledgementGapMs,row.playback,row.engineProfile,row.playback?.maxGapMs,row.playback?.gapCount,row.playback?.stallPrompts,row.audioTiming?.speechToFirstPlaybackMs,row.audioTiming?.speechToInformativeByteMs,row.audioTiming?.speechToInformativePlaybackMs,row.ttsChunks,row.ackFirstByteMs,row.runtime?.buildCommit??"unknown",row.runtime?.buildDirty,row.runtime?.sttConfig,row.runtime?.endpointSettings,row.runtime?.ttsProvider??"unknown",row.runtime?.ttsModel??"unknown"].map(csvCell).join(","))].join("\r\n")+"\r\n";
 }

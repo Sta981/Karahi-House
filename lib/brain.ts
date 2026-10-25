@@ -51,7 +51,7 @@ export async function runSmartTurn(
   // Pending confirmations, staff review and checkout remain local even if the
   // legacy dialog marks a failed clarification as needing conversational help.
   const guarded = state.phase !== "open" || state.recognition || state.pendingCorrection || state.needsReview ||
-    local.state.needsReview || analysis.issues.length || requiresStaffReview(trimmed);
+    local.state.needsReview || analysis.issues.length || requiresStaffReview(trimmed) || local.operations?.length || local.disclosure?.length;
   if (!local.needsLLM || guarded) {
     return finish({ ...local, usedLLM: false }, { route: "local", outcome: "local", candidateCount: 0 });
   }

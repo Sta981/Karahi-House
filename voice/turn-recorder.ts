@@ -1,8 +1,9 @@
 import { safeTranscript,loggedCart,type VoiceLogRow,type LatencyStages } from "./turn-log";
+import type { VoiceRuntimeInfo } from "./runtime-info";
 export class TurnRecorder {
   private rows=new Map<number,VoiceLogRow>();
   private transcript="";
-  constructor(private meta:{callId:string;location:string;model:string;profile:string},private publish:(row:VoiceLogRow)=>void){}
+  constructor(private meta:{callId:string;location:string;model:string;profile:string;runtime?:VoiceRuntimeInfo},private publish:(row:VoiceLogRow)=>void){}
   event(event:Record<string,unknown>) {
     if(event.type==="tts_telemetry"){
       const row=this.rows.get(Number(event.generation)),data=event.event as Record<string,unknown>|undefined;if(!row||!data)return;
@@ -14,6 +15,7 @@ export class TurnRecorder {
     if(event.type==="reply"){
       const generation=Number(event.generation);
       const row:VoiceLogRow={turnId:`${this.meta.callId}:${generation}`,atUtc:new Date().toISOString(),location:this.meta.location,model:this.meta.model,endpointProfile:this.meta.profile,transcript:this.transcript,matchedCart:loggedCart(event.cart as Record<string,any>[]),endpointReason:String(event.endpointReason??"unknown"),status:"awaiting_audio",engineMs:Number(event.engineMs),ttsFirstByteMs:null,firstByteCached:false,speculativeHit:!!event.speculativeHit,preparationMs:Number(event.preparationMs??0),latency:null};
+      if(this.meta.runtime)row.runtime=structuredClone(this.meta.runtime);
       row.replyTextLength=String(event.text??"").length;this.rows.set(generation,row);this.publish(row);
       const profile=event.engineProfile as Record<string,unknown>|undefined;
       if(profile&&["recognitionMs","dialogMs","wallMs","cpuMs","cartLinesBefore"].every(key=>typeof profile[key]==="number"&&Number.isFinite(profile[key]))){row.engineProfile={recognitionMs:Number(profile.recognitionMs),dialogMs:Number(profile.dialogMs),wallMs:Number(profile.wallMs),cpuMs:Number(profile.cpuMs),phase:String(profile.phase).slice(0,20),cartLinesBefore:Number(profile.cartLinesBefore)};this.publish(row);}

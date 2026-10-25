@@ -5,6 +5,7 @@ import { mishearingsCsv } from "@/voice/mishearings";
 import { recoverableVoiceError,voiceErrorMessage } from "@/voice/connection-status";
 import { BARGE_IN_DEFAULTS,type BargeTrigger } from "@/voice/barge-in";
 import { PlaybackLedger } from "@/voice/playback";
+import type { VoiceRuntimeInfo } from "@/voice/runtime-info";
 
 type Timing = { totalMs: number; endpointAndUplinkMs: number; engineMs: number; ttsFirstByteMs: number; returnNetworkMs: number; browserRttMs: number; clockUncertaintyMs: number };
 function percentiles(values: number[]) { const sorted = [...values].sort((a,b) => a-b); return { n: sorted.length, p50: sorted[Math.max(0, Math.ceil(sorted.length*.5)-1)]?.toFixed(1) ?? "—", p95: sorted[Math.max(0, Math.ceil(sorted.length*.95)-1)]?.toFixed(1) ?? "—" }; }
@@ -14,11 +15,12 @@ export default function StreamingVoice() {
   const [requiresAccessCode,setRequiresAccessCode]=useState(false),[partial,setPartial]=useState(""),[micLevel,setMicLevel]=useState(0);
   const [intended,setIntended]=useState<Record<string,string>>({});
   const [ignoreInterruptions,setIgnoreInterruptions]=useState(false),[ticket,setTicket]=useState<unknown>(null);
+  const [build,setBuild]=useState<{commit:string;dirty:boolean}|null>(null),[runtime,setRuntime]=useState<VoiceRuntimeInfo|null>(null);
   const [rows, setRows] = useState<{role:string;text:string}[]>([]), [cart, setCart] = useState<any[]>([]), [timings, setTimings] = useState<Timing[]>([]);
   const cleanup = useRef<() => void>(() => {}); const interrupt = useRef<(trigger?:BargeTrigger) => void>(() => {});
   useEffect(() => {
     const abort=new AbortController();
-    void fetch("/voice-health",{signal:abort.signal,cache:"no-store"}).then(response=>response.json()).then(health=>{if(!abort.signal.aborted)setRequiresAccessCode(health.requiresAccessCode===true);}).catch(()=>{});
+    void fetch("/voice-health",{signal:abort.signal,cache:"no-store"}).then(response=>response.json()).then(health=>{if(!abort.signal.aborted){setRequiresAccessCode(health.requiresAccessCode===true);setBuild(health.build??null);}}).catch(()=>{});
     return ()=>{abort.abort();cleanup.current();};
   }, []);
   async function connect() {
@@ -144,6 +146,7 @@ export default function StreamingVoice() {
       if (msg.type !== "ready") return;
       clearTimeout(connectTimer);
       setLocationLabel(msg.location||"Lahore local");
+      setRuntime(msg.runtime??null);if(msg.runtime)setBuild({commit:msg.runtime.buildCommit,dirty:msg.runtime.buildDirty});
       capture!.connect(worklet!);worklet!.connect(context!.destination);ready=true;
       send({ type: "mic_ready" });
       setStatus(`Listening · ${msg.model} · ${msg.tts} · microphone stays on during replies`);
@@ -161,6 +164,8 @@ export default function StreamingVoice() {
       <label><input type="checkbox" checked={ignoreInterruptions} onChange={event=>setIgnoreInterruptions(event.target.checked)} disabled={active}/> Ignore interruptions (demo)</label>
     </div>
     <p role="status">{status}</p>
+    <p data-testid="voice-build">Build: <code>{build?.commit??"unknown"}</code>{build?.dirty?" (uncommitted changes)":""}</p>
+    {runtime&&<p data-testid="voice-runtime">STT: {runtime.sttConfig.provider} {runtime.sttConfig.model}, {runtime.sttConfig.language}, {runtime.sttConfig.sampleRate} Hz, {runtime.sttConfig.keytermCount} keyterms. Endpoint: {runtime.endpointSettings.profile}, {runtime.endpointSettings.mode}; complete {runtime.endpointSettings.completeMs} ms, uncertain {runtime.endpointSettings.uncertainMs} ms, unfinished {runtime.endpointSettings.incompleteMs} ms, answers {runtime.endpointSettings.answerMs} ms; continuation {runtime.endpointSettings.continuationWindowMs} ms. Provider endpoint settings: {JSON.stringify(runtime.endpointSettings.provider)}. TTS: {runtime.ttsProvider}, {runtime.ttsModel}.</p>}
     {active&&<p>Microphone level <meter aria-label="Microphone level" min={0} max={0.15} value={micLevel}/> {partial&&<span>Heard so far: {partial}</span>}</p>}
     <p>Use headphones for the first test. Calls end after ten minutes. Text demo: <a href="/">home</a>.</p>
     <p>No final recognition model has been chosen. Compare the three options using the same real-mic script.</p>
@@ -181,7 +186,7 @@ export default function StreamingVoice() {
     <h2 style={{marginTop:20}}>Turn log</h2>
     <p>Callback turns and numbers are redacted. Logs stay in this tab; the server saves no caller audio or transcripts. Export before closing the tab, save privately under .data, and delete exports within thirty days.</p>
     <button className="btn btn-ghost" disabled={!logs.length} onClick={()=>{const url=URL.createObjectURL(new Blob([voiceCsv(logs)],{type:"text/csv;charset=utf-8"}));const link=document.createElement("a");link.href=url;link.download=`karahi-voice-${locationLabel.toLowerCase().replaceAll(" ","-")}-${model}.csv`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}}>Export turn log CSV</button>
-    <button className="btn btn-ghost" disabled={!Object.values(intended).some(value=>value.trim())} onClick={()=>{const csv=mishearingsCsv(logs.map(row=>({turnId:row.turnId,atUtc:row.atUtc,model:row.model,location:row.location,heard:row.transcript,intended:intended[row.turnId]??""})));const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));const link=document.createElement("a");link.href=url;link.download="karahi-mishearings-private.csv";link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}}>Export mishearings CSV</button>
+    <button className="btn btn-ghost" disabled={!Object.values(intended).some(value=>value.trim())} onClick={()=>{const csv=mishearingsCsv(logs.map(row=>({turnId:row.turnId,atUtc:row.atUtc,model:row.model,location:row.location,heard:row.transcript,intended:intended[row.turnId]??"",runtime:row.runtime})));const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));const link=document.createElement("a");link.href=url;link.download="karahi-mishearings-private.csv";link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}}>Export mishearings CSV</button>
     <p>For a mishearing, type what you meant in your own words. This stays in the tab and your CSV; aliases require manual review.</p>
     <table style={{width:"100%"}}><thead><tr><th>Transcript (redacted)</th><th>What you meant</th><th>Cart</th><th>Endpoint reason</th><th>First informative playback ms</th></tr></thead><tbody>{logs.map(row=><tr key={row.turnId}><td>{row.transcript}</td><td><input aria-label={`Intended words ${row.turnId}`} value={intended[row.turnId]??""} onChange={event=>setIntended(previous=>({...previous,[row.turnId]:event.target.value}))}/></td><td>{row.matchedCart.map(item=>`${item.qty} × ${item.itemId}`).join("; ")}</td><td>{row.endpointReason}</td><td>{row.audioTiming?.speechToInformativePlaybackMs?.toFixed(1)??row.status}</td></tr>)}</tbody></table>
   </div></section>;
