@@ -64,7 +64,7 @@ const NUM_WORDS: Record<string, number> = {
   nine: 9, ten: 10, eleven: 11, twelve: 12, a: 1, an: 1, couple: 2, few: 3,
   dozen: 12, single: 1, double: 2, triple: 3, zero: 0,
   // Urdu / Hindi numerals; callers mix languages mid-sentence
-  ek: 1, aik: 1, do: 2, teen: 3, char: 4, chaar: 4, panch: 5, paanch: 5,
+  ek: 1, aik: 1, ik:1, ikk:1, do: 2, teen: 3, tinn:3, char: 4, chaar: 4, panch: 5, paanch: 5, panj:5,
   che: 6, chay: 6, saat: 7, aath: 8, nau: 9, das: 10,
 };
 

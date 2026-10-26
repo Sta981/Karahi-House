@@ -161,7 +161,7 @@ export default function StreamingVoice() {
     <h1>Karahi House streaming voice demo</h1>
     <p>Menu approved by the restaurant. Demo orders are simulated and pending staff acceptance. No caller audio is saved. Redacted turn logs can be exported to CSV.</p>
     <div className="call-controls" style={{marginTop:20}}>
-      <label>Recognition <select aria-label="Recognition model" value={model} onChange={e => setModel(e.target.value)} disabled={active}><option value="">Choose a model</option><option value="flux">Flux English</option><option value="nova-3">Nova-3 multilingual</option><option value="nova-3-en-IN">Nova-3 Indian English</option></select></label>
+      <label>Recognition <select aria-label="Recognition model" value={model} onChange={e => setModel(e.target.value)} disabled={active}><option value="">Choose a model</option><option value="flux">Flux English</option><option value="nova-3">Nova-3 multilingual (English/Hindi mix)</option><option value="nova-3-en-IN">Nova-3 Indian English</option></select></label>
       {requiresAccessCode&&<label>Hosted demo access code <input aria-label="Hosted demo access code" type="password" autoComplete="off" value={accessCode} onChange={e=>setAccessCode(e.target.value)} disabled={active}/></label>}
       <button className="btn btn-primary" disabled={active||!model} onClick={() => void connect()}>Start microphone</button>
       <button className="btn btn-ghost" disabled={!active} onClick={() => interrupt.current()}>Interrupt reply</button>
@@ -170,10 +170,11 @@ export default function StreamingVoice() {
     </div>
     <p role="status">{status}</p>
     <p data-testid="voice-build">Build: <code>{build?.commit??"unknown"}</code>{build?.dirty?" (uncommitted changes)":""}</p>
-    {runtime&&<p data-testid="voice-runtime">STT: {runtime.sttConfig.provider} {runtime.sttConfig.model}, {runtime.sttConfig.language}, {runtime.sttConfig.sampleRate} Hz, {runtime.sttConfig.keytermCount} keyterms. Endpoint: {runtime.endpointSettings.profile}, {runtime.endpointSettings.mode}; complete {runtime.endpointSettings.completeMs} ms, uncertain {runtime.endpointSettings.uncertainMs} ms, unfinished {runtime.endpointSettings.incompleteMs} ms, answers {runtime.endpointSettings.answerMs} ms; continuation {runtime.endpointSettings.continuationWindowMs} ms. Provider endpoint settings: {JSON.stringify(runtime.endpointSettings.provider)}. TTS: {runtime.ttsProvider}, {runtime.ttsModel}.</p>}
+    {runtime&&<p data-testid="voice-runtime">STT: {runtime.sttConfig.provider} {runtime.sttConfig.model}, {runtime.sttConfig.language}, {runtime.sttConfig.sampleRate} Hz, {runtime.sttConfig.keytermCount} keyterms. Language hints: {runtime.sttConfig.languageHints?.join(", ")||"none"}. Endpoint: {runtime.endpointSettings.profile}, {runtime.endpointSettings.mode}; complete {runtime.endpointSettings.completeMs} ms, uncertain {runtime.endpointSettings.uncertainMs} ms, unfinished {runtime.endpointSettings.incompleteMs} ms, answers {runtime.endpointSettings.answerMs} ms; continuation {runtime.endpointSettings.continuationWindowMs} ms. Provider endpoint settings: {JSON.stringify(runtime.endpointSettings.provider)}. TTS: {runtime.ttsProvider}, {runtime.ttsModel}.</p>}
     {active&&<p>Microphone level <meter aria-label="Microphone level" min={0} max={0.15} value={micLevel}/> {partial&&<span>Heard so far: {partial}</span>}</p>}
     <p>Use headphones for the first test. Calls end after ten minutes. Text demo: <a href="/">home</a>.</p>
     <p>No final recognition model has been chosen. Compare the three options using the same real-mic script.</p>
+    <p>For Hindi mixed with English, try Nova-3 multilingual. Full Urdu/Punjabi speech is not supported in this demo.</p>
     <div aria-live="polite" style={{marginTop:20}}>{rows.map((row,i) => <p key={i}><strong>{row.role}:</strong> {row.text}</p>)}</div>
     <h2 style={{marginTop:20}}>Current cart</h2>
     {cart.length ? cart.map((item,i) => <p key={i}>{item.qty} × {item.name}{item.size ? ` · ${item.size}` : ""}{item.spiceLevel ? ` · ${item.spiceLevel}` : ""}</p>) : <p>No items yet.</p>}

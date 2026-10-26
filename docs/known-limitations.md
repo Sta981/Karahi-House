@@ -7,7 +7,7 @@ This is a laptop pickup-order demo with menu questions and catering inquiries. M
 - Real-mic sessions have shown dish/number mishearings and interruptions. Correct transcripts have also exposed engine failures: duplicates, stale candidates and unintended additions. Intent permissions, cart disclosure and regressions address those patterns; passing tests does not prove every spoken phrasing safe.
 - No independently scored multi-speaker accent corpus has been completed. Owner-reported calls do not establish population accuracy, a model winner or a controlled accuracy improvement. Synthetic speech is not an accent test.
 - Ambiguous names, proteins, truncated dishes and “hot” need clarification. Read-back and explicit confirmation remain mandatory. The private 23-turn development replay checks safety; intended final cart is still missing, so final-cart correctness is ungraded.
-- Accented English with limited Urdu/Hindi food/number phrases is in scope. Full Urdu/Hindi, Nepali, Pashto and Dari conversations are future work.
+- Accented English and a small explicit Urdu/Hindi/Punjabi text vocabulary are in scope. The multilingual Nova option now hints English/Hindi and normalizes common native-script words; live performance of that change is unmeasured. The current Nova language list does not include Urdu/Punjabi. Full conversations, arbitrary translation, Nepali, Pashto and Dari remain future work. See [language scope](code-switching.md).
 - Safety disclosures/read-back can exceed fifteen words. STT may drop/merge speech before the engine sees it; continuation rollback cannot undo words already played.
 
 ## Latency by recorded build and configuration
@@ -29,9 +29,12 @@ The synthetic builds used the same thirty public inputs per configuration with r
 | `784ab85` | Synthetic / Nova-3 en-IN | 30/30 | 30/30 | 1.008 / 1.763 |
 | Unknown earlier build, `baseline+adaptive1600` | Owner real mic / Nova-3 en-IN | 20/23 logged turns | 15/23 | 4.354 / 8.250 |
 | `86bb58f` source / `90486c1` published | Action-safety revision | No fresh controlled measurement | Not measured | Not measured |
-| Notification/documentation revision | All three configs | No live measurement | Not measured | Not measured |
+| `a3102c4`, `baseline+adaptive800` | Owner real mic / Nova-3 en-IN / Aura-2 | 17/17 logged turns | 15/17 | 2.496 / 6.734 |
+| Current removal/language revision | All three configs | No live measurement yet | Not measured | Not measured |
 
 Real-mic worst informative latency was **17.344 s**; three rows have no informative measurement, four report barge-in cuts. Old first transport-byte median 1.879 s includes neutral audio and is not the informative headline. The pasted page was a transient nineteen-measurement snapshot; the complete CSV has twenty. These values cannot be attributed to a newer build without a retest recording its commit/configuration.
+
+The separate `a3102c4` real-mic export contains seventeen clean-build rows. Informative byte p50/p95: 2.468/6.156 s; engine: 57.5/253.1 ms. Zero barge-in cuts were logged; fifteen replies finished, one was revised by continuation and one was still active/stopped at export. One `no_audio` status conflicts with its informative timing, so timing arrivals do not prove complete playback. With seventeen samples, nearest-rank p95 equals the maximum. A removal had one logged TTS stall prompt. No independently labeled accuracy or matched-input improvement follows from these counts.
 
 The atomic trial is a retained regression: waiting for body completion caused long tails. Streaming improved the synthetic run, but dynamic synthesis still stalled on Flux and multilingual Nova. One startup attempt timed out before upload (zero attempted turns); a warm retry produced the ninety-turn run. An earlier same-input trial had a premature release each on Flux and en-IN; zero in the later run does not prove zero cut-offs. Deliberate greeting interruptions are not a validated false-positive rate.
 

@@ -47,6 +47,8 @@ Items, quantities, size, spice, notes, prices, subtotal and read-back come from 
 
 All transports share intent permissions and a semantic cart diff. Questions/complaints cannot mutate; removals cannot add. Committed changes are disclosed after reply rewrites. Validation covers 720 seeded turns and development patterns, not universal recognition accuracy. See [action-safety design](docs/action-safety.md).
 
+Removing a multi-quantity item without a count asks **one or both / one or all**; “yes” alone cannot delete the whole group. For Hindi/English mixed speech, select **Nova-3 multilingual (English/Hindi mix)**. A small local vocabulary handles common numbers, size/spice answers and removal phrases in Roman/native script. English-only STT cannot recover words it never transcribed; Urdu/Punjabi speech is not supported by the current provider configuration. See [scope and real-mic retest](docs/code-switching.md).
+
 ## Measured latency
 
 Headline: speech end → first **informative playback**, excluding neutral acknowledgements. All rows below are **Lahore local**, not US-hosted. Synthetic speech does not establish human-accent performance.
@@ -57,8 +59,9 @@ Headline: speech end → first **informative playback**, excluding neutral ackno
 | `784ab85`, same script | Nova-3 multilingual | 30/30 | 1.453 / 7.343 s |
 | `784ab85`, same script | Nova-3 en-IN | 30/30 | 1.008 / 1.763 s |
 | Unknown earlier build, owner real mic, `adaptive1600` | Nova-3 en-IN | 20/23 logged turns | 4.354 / 8.250 s |
+| `a3102c4`, owner real mic, `adaptive800` | Nova-3 en-IN / Aura-2 | 17/17 logged turns | 2.496 / 6.734 s |
 
-Real-mic worst informative delay was **17.344 s**; only 15/23 rows reported finished playback. The synthetic run finished 30/30 per configuration, with slow dynamic replies remaining. Failed/regressed trials remain in [known limitations](docs/known-limitations.md). No fresh live latency is claimed for action-safety/notification revisions; the owner's retest must identify its build/configuration.
+The earlier real-mic worst informative delay was **17.344 s**, with 15/23 finished replies. The new seventeen-row `a3102c4` export has 15/17 finished, zero barge-in cuts and a 6.734 s worst informative delay; one row has a conflicting `no_audio` status despite an informative timestamp. These are different utterances/sample sizes, not a controlled before/after accuracy test. The synthetic run finished 30/30 per configuration, with slow dynamic replies remaining. Failed/regressed trials remain in [known limitations](docs/known-limitations.md). The new removal/language revision awaits its own real-mic retest.
 
 The page and each turn/mishearing CSV row identify commit, dirty status, STT, endpoint settings and TTS. Defaults: complete Flux 750 ms, Nova multi 1100 ms, en-IN 800 ms; uncertain 900 ms, unfinished 1600 ms, finite answers 600 ms. Provider endpointing adds time. Barge-in uses 480 ms sustained speech plus energy/echo checks; Ignore interruptions is available. All 311 fixed synthetic clips are pre-rendered; dynamic misses still depend on the provider. Engine speculation is off.
 
@@ -78,7 +81,7 @@ npm run check:privacy
 npm run build
 ```
 
-Current validation passes 170 selected checks: 53 engine, 42 live/pattern, 55 voice, 4 publication, 8 notification, 1 scripted walkthrough and 7 development-cache checks. Notification checks use mock transport. The full local development checkout also supports `npm run test:engine`; some baseline-integrity checks need local evaluation artifacts intentionally excluded from the public snapshot. Development tests are not held-out or accent accuracy. Held-out files/grading rules are excluded from this checklist. Burned cases remain regression-only. The Groq segmenter comparison was skipped; local parsing remains default.
+Current validation passes 182 selected checks: 53 engine, 54 live/pattern, 55 voice, 4 publication, 8 notification, 1 scripted walkthrough and 7 development-cache checks. Notification checks use mock transport. The full local development checkout also supports `npm run test:engine`; some baseline-integrity checks need local evaluation artifacts intentionally excluded from the public snapshot. Development tests are not held-out or accent accuracy. Held-out files/grading rules are excluded from this checklist. Burned cases remain regression-only. The Groq segmenter comparison was skipped; local parsing remains default.
 
 Use the [thirty-turn real-mic script](docs/real-mic-script.md) and [blank sheet](docs/real-mic-results-template.csv) for all three STT configs. Export before resetting. Enter intended words for mishearings; aliases need manual review. `npm run voice:analyze -- 'path-to-export.csv' --require-commit FULL_COMMIT_HASH` excludes other/dirty builds. Explicit provider benchmarks consume credits; offline checks above do not.
 

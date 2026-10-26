@@ -63,7 +63,7 @@ test("keema retains the bread/style choice and then narrows to real proteins",()
 });
 test("unique partial removal asks consent; cancellation leaves the cart unchanged",()=>{
   const initial=seed("three cheese naan","one mango lassi");
-  const result=runTurn(initial,"remove cheese knot");assert.ok(result.state.removalConfirmation);assert.deepEqual(result.state.cart,initial.cart);assert.match(result.reply,/Remove Cheese Naan/);assert.doesNotMatch(result.reply,/You have/);
+  const result=runTurn(initial,"remove all cheese knot");assert.ok(result.state.removalConfirmation);assert.deepEqual(result.state.cart,initial.cart);assert.match(result.reply,/Remove 3 Cheese Naan/);assert.doesNotMatch(result.reply,/You have/);
   const no=runTurn(result.state,"no");assert.deepEqual(no.state.cart,initial.cart);
   const yes=runTurn(result.state,"yes");assert.equal(yes.state.cart.length,1);assert.match(yes.reply,/Removed 3 Cheese Naan/);
 });

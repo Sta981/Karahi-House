@@ -3,12 +3,13 @@ import { CATERING, MENU, MODIFIERS, RESTAURANT, MENU_SOURCE_SHA256, getItem, uni
 import { Match, RecognitionAnalysis, RecognitionIssue, analyzeUtterance, matchUtterance, candidateQuestion, extractQuantityHint, extractVariantHints } from "./matcher";
 import { redactPhoneNumbers } from "./privacy";
 import { speechText } from "./speech";
-import { hasCorrectionMarkers, isRemovalCommand, planLocalCorrection, segmentLocalCorrection, targetIndexes, OrderEntry, OrderSegment } from "./order-operations";
+import { hasCorrectionMarkers, isRemovalCommand, planLocalCorrection, segmentLocalCorrection, targetIndexes, orderEntryKey, removalAmount, removalQuantityQuestion, type RemovalQuantityChoice, OrderEntry, OrderSegment } from "./order-operations";
 import { CartOperation, recordCartOperations } from "./cart-journal";
 import { similarity } from "./phonetic";
 import { speechTokens } from "./speech";
 import { menuBrowsing, CATEGORY_LIST, MENU_FALLBACK, type BrowseState } from "./menu-browsing";
 import { classifyTurn, cartChanges, permitsCart, desiredTotal, equivalentLine, spokenLine, type TurnIntent } from "./turn-safety";
+import { normalizeCodeSwitch } from "./code-switch";
 
 export interface CartLine {
   itemId: string; name: string; qty: number; size?: "Half" | "Full";
@@ -30,6 +31,7 @@ export interface DialogState {
   answerConfirmation?:{kind:"size"|"spice"|"yesno";value:string};
   checkoutRequested?:boolean;spiceAsked?:boolean;
   removalConfirmation?:{index:number;itemId:string;qty:number;target:string};
+  removalQuantity?:RemovalQuantityChoice;
   browsing?:BrowseState; menuQuestionMisses?:number;
   repetition?:{itemId:string;choices:number[];portion?:"half"|"full";spiceLevel?:string;notes?:string[]};
   lastIntent?:TurnIntent;
@@ -110,6 +112,7 @@ function modifierQuestion(s: DialogState): string | undefined {
   s.phase = "open";
 }
 function pendingQuestion(s:DialogState):string|undefined{
+  if(s.removalQuantity)return removalQuantityQuestion(getItem(s.removalQuantity.itemId)!.name,s.removalQuantity.available);
   if(s.removalConfirmation)return `Remove ${s.cart[s.removalConfirmation.index]?.name??"that item"}?`;
   if(s.answerConfirmation)return `Did you mean ${s.answerConfirmation.value}?`;
   if(s.pendingCorrection)return `You have ${cartSpoken(s.cart)}. Which existing item should I ${s.pendingCorrection.segment.action==="remove"?"remove":"change"}?`;
@@ -195,11 +198,12 @@ function correctionOperationsTurn(s:DialogState,text:string):TurnResult|undefine
     const target=segments[0].text,indexes=targetIndexes(initial,target);
     if(indexes.length===1&&indexes[0]<s.cart.length){
       const index=indexes[0],item=getItem(s.cart[index].itemId)!;
-      const literal=target.toLowerCase().replace(/[^a-z\s]/g," ").split(/\s+/).filter(word=>word&&!['the','now','please','one','two','three','four','a','an'].includes(word)).join(" ");
+      const literal=target.toLowerCase().replace(/[^a-z\s]/g," ").split(/\s+/).filter(word=>word&&!['the','now','please','one','two','three','four','five','six','seven','eight','nine','ten','a','an','ek','aik','ik','ikk','do','teen','tinn','chaar','char','paanch','panj','all','both','only','just'].includes(word)).join(" ");
       const exact=[item.name,item.website_name,...item.aliases].filter(Boolean).some(label=>label!.toLowerCase()===literal);
-      if(!exact&&!/^(?:it|that|last(?: item| one)?|everything|whole order|all items|entire order)$/i.test(target.trim())){
+      const amount=removalAmount(target,s.cart[index].qty);
+      if(!amount.invalid&&(amount.qty!==undefined||s.cart[index].qty===1)&&!exact&&!/^(?:it|that|last(?: item| one)?|everything|whole order|all items|entire order)$/i.test(target.trim())){
         s.removalConfirmation={index,itemId:item.id,qty:s.cart[index].qty,target};
-        return {reply:`Remove ${item.name}?`,state:s,matches:[]};
+        return {reply:`Remove ${spokenLine(s.cart[index],amount.qty??1)}?`,state:s,matches:[]};
       }
     }
   }
@@ -214,6 +218,7 @@ function correctionOperationsTurn(s:DialogState,text:string):TurnResult|undefine
     }else accepted.push(match);
   }
   const processed=processMatches(s,accepted);
+  s.removalQuantity=plan.removalQuantity;
   for(let index=0;index<plan.entries.length;index++){const entry=plan.entries[index];const line=s.cart[index];if(line?.itemId===entry.itemId&&entry.spiceSource)line.spiceSource=entry.spiceSource;}
   if(plan.issues.length){
     const target=plan.replaceIndex!==undefined?plan.entries[plan.replaceIndex]:undefined;
@@ -222,6 +227,7 @@ function correctionOperationsTurn(s:DialogState,text:string):TurnResult|undefine
   }
   if(plan.question){
     const segment=plan.blockedSegment??plan.segments[plan.segments.length-1]??{action:isRemovalCommand(text)?"remove" as const:"replace" as const,text:"",start:0,end:text.length};s.pendingCorrection={segment,attempts:0};
+    if(plan.removalQuantity)return {reply:plan.question,state:s,matches:plan.changed};
     const tied=segment?.action==="remove"&&targetIndexes(initial,segment.text).length>1;
     return {reply:`${tied||segment?.action==="remove"?`You have ${cartSpoken(s.cart)||"an empty cart"}. `:""}${plan.question}`,state:s,matches:plan.changed};
   }
@@ -563,12 +569,34 @@ function informationTurn(state:DialogState,text:string,intent:TurnIntent):TurnRe
 
 function removalTurn(state:DialogState,text:string):TurnResult{
   const s=structuredClone(state);s.turns++;
+  // Negating a removal cannot turn the named dish into an add or a deletion.
+  // An explicit later instruction ("don't remove all, remove one ...") wins.
+  if(/\b(?:don'?t|do not|never)\s+remove\b/i.test(text)){
+    const remaining=text.replace(/\b(?:don'?t|do not|never)\s+remove\b.*?(?=\bremove\b|$)/gi,"").trim();
+    if(!/\bremove\b/i.test(remaining)){s.removalQuantity=undefined;s.removalConfirmation=undefined;s.pendingCorrection=undefined;return {reply:"Kept it. Anything else?",state:s,matches:[]};}
+    text=remaining;
+  }
+  if(s.removalQuantity){
+    const choice=s.removalQuantity;
+    if(/^(?:no|cancel|never mind|keep (?:it|them|both|all))[.!]?$/i.test(text.trim())){s.removalQuantity=undefined;s.pendingCorrection=undefined;return {reply:"Kept it. Anything else?",state:s,matches:[]};}
+    const entries:OrderEntry[]=[...s.cart.map(line=>({itemId:line.itemId,qty:line.qty,portion:line.size?.toLowerCase() as "half"|"full"|undefined,spiceLevel:line.spiceLevel,notes:line.notes})),...[s.pending,...(s.queued??[])].filter((entry):entry is PendingItem=>!!entry)];
+    const available=entries.filter(entry=>orderEntryKey(entry)===choice.key).reduce((sum,entry)=>sum+entry.qty,0);
+    if(available!==choice.available){s.removalQuantity=undefined;s.pendingCorrection=undefined;return {reply:"The cart changed. Which item should I remove?",state:s,matches:[]};}
+    const amount=removalAmount(text,available),tokens=speechTokens(text);
+    const labels=new Set([getItem(choice.itemId)!.name,...getItem(choice.itemId)!.aliases].flatMap(speechTokens));
+    const answerWords=new Set(["remove","only","just","one","two","three","four","five","six","seven","eight","nine","ten","ek","aik","ik","ikk","do","teen","tinn","char","chaar","paanch","panj","all","both","of","them","the","a","an","it","that","yes","no","please"]);
+    const finite=tokens.every(token=>answerWords.has(token)||labels.has(token)||/^\d+$/.test(token));
+    if(amount.invalid||amount.qty===undefined||!finite)return {reply:removalQuantityQuestion(getItem(choice.itemId)!.name,available,true),state:s,matches:[]};
+    s.removalQuantity=undefined;s.pendingCorrection=undefined;s.turns--;
+    return correctionOperationsTurn(s,`remove ${amount.qty} ${choice.target}`)??{reply:"Which existing item should I remove?",state:s,matches:[]};
+  }
   if(s.removalConfirmation){
     const confirmation=s.removalConfirmation,line=s.cart[confirmation.index],answer=constrainedAnswer(text,"yesno",["yes","no"]).value;
     if(answer==="no"){s.removalConfirmation=undefined;s.pendingCorrection=undefined;return {reply:"Kept it. Anything else?",state:s,matches:[]};}
     if(answer!=="yes")return {reply:`Remove ${line?spokenLine(line):"that item"}? Please say yes or no.`,state:s,matches:[]};
     if(!line||line.itemId!==confirmation.itemId||line.qty!==confirmation.qty)return {reply:"The cart changed. Which item should I remove?",state:s,matches:[]};
-    const qty=extractQuantityHint(confirmation.target)??line.qty;
+    const amount=removalAmount(confirmation.target,line.qty),qty=amount.qty??(line.qty===1?1:undefined);
+    if(qty===undefined||amount.invalid){s.removalConfirmation=undefined;s.turns--;return correctionOperationsTurn(s,`remove ${confirmation.target}`)??{reply:"How many should I remove?",state:s,matches:[]};}
     if(!Number.isSafeInteger(qty)||qty<1||qty>line.qty)return {reply:"How many of that existing item should I remove?",state:s,matches:[]};
     line.qty-=qty;if(!line.qty)s.cart.splice(confirmation.index,1);
     s.removalConfirmation=undefined;s.pendingCorrection=undefined;
@@ -657,6 +685,7 @@ function actionTurn(state:DialogState,text:string,intent:TurnIntent,provided?:Re
     return {reply:pendingQuestion(s)!,state:s,matches:[]};
   }
   const total=totalCorrectionTurn(state,text);if(total)return total;
+  if(/^(?:no spice|not spicy|mild(?: spice)?|medium(?: spice)?|spicy|extra spicy)[.!]?$/i.test(text.trim()))return runTurnCore(state,text,provided);
   const explicit=pendingExplicitCorrection(state,text,intent);if(explicit)return explicit;
   if(intent==="add_order"){
     const raw=matchUtterance(text).filter(match=>match.score===1),tokens=speechTokens(text);
@@ -675,6 +704,12 @@ function actionTurn(state:DialogState,text:string,intent:TurnIntent,provided?:Re
 // Transaction boundary: classify -> propose -> validate -> rewrite -> disclose
 // -> verify -> commit. The engine and all audio transports share this path.
 export function runTurn(state:DialogState,text:string,analysis?:RecognitionAnalysis):TurnResult{
+  const normalized=normalizeCodeSwitch(text,state.phase==="ask_name");
+  if(normalized.unsupportedScript&&!requiresStaffReview(normalized.text)){
+    const reply="I missed part of that. Please repeat the item or choice in English.";
+    return {reply,state:{...structuredClone(state),turns:state.turns+1,lastReply:reply},matches:[],operations:[],disclosure:[],intent:classifyTurn(state,normalized.text).intent};
+  }
+  if(normalized.changed){text=normalized.text;analysis=undefined;}
   const decision=classifyTurn(state,text);
   let result=state.phase==="closed"?runTurnCore(state,text,analysis):requiresStaffReview(text)?runTurnCore(state,text,analysis):actionTurn(state,text,decision.intent,analysis);
   result.state=JSON.parse(JSON.stringify(result.state));
@@ -692,15 +727,16 @@ export function runTurn(state:DialogState,text:string,analysis?:RecognitionAnaly
     const removed=[...new Set(state.cart.map(key))].flatMap(id=>{const qty=total(state.cart,id)-total(result.state.cart,id),line=state.cart.find(line=>key(line)===id)!;return qty>0?[`${qty} ${line.name}${line.size?`, ${line.size}`:""}`]:[];});
     if(removed.length)result.reply=`Removed ${removed.join(" and ")}. ${pendingQuestion(result.state)??"Anything else?"}`;
   }
-  const progress=JSON.stringify([state.cart,state.pending,state.orderSpice,state.phase,state.recognition?.issues.map(issue=>issue.heard),state.pendingCorrection?.segment])!==JSON.stringify([result.state.cart,result.state.pending,result.state.orderSpice,result.state.phase,result.state.recognition?.issues.map(issue=>issue.heard),result.state.pendingCorrection?.segment]);
+  const progress=JSON.stringify([state.cart,state.pending,state.orderSpice,state.phase,state.recognition?.issues.map(issue=>issue.heard),state.pendingCorrection?.segment,state.removalQuantity,state.removalConfirmation])!==JSON.stringify([result.state.cart,result.state.pending,result.state.orderSpice,result.state.phase,result.state.recognition?.issues.map(issue=>issue.heard),result.state.pendingCorrection?.segment,result.state.removalQuantity,result.state.removalConfirmation]);
   const browsing=!!menuBrowsing(text,state.browsing??(state.lastReply?.includes("Menu categories:")?{key:"menu",offset:0}:undefined));
   const answeredInformation=["question","complaint"].includes(decision.intent)&&!result.needsLLM;
   const miss=!answeredInformation&&!browsing&&!progress&&(!!pendingQuestion(result.state)||!!result.needsLLM)&&!/^\b(?:price|cost|total|subtotal|bill|how much)\b/i.test(text);
   result.state.recoveryMisses=miss?(state.recoveryMisses??0)+1:0;
-  if(result.state.recoveryMisses>=2&&!result.reply.includes("Menu categories:"))result.reply=`${CATEGORY_LIST} Which category would you like?`;
+  if(result.state.recoveryMisses>=2&&!result.state.removalQuantity&&!result.reply.includes("Menu categories:"))result.reply=`${CATEGORY_LIST} Which category would you like?`;
   if(result.state.recoveryMisses>=3&&!browsing){result.state.needsReview=true;result.reply="I couldn't resolve that. The team can help; what callback number should they use?";}
   if(result.reply===state.lastReply){
-    if(browsing)result.reply=`${CATEGORY_LIST} Which category would you like next?`;
+    if(result.state.removalQuantity)result.reply=removalQuantityQuestion(getItem(result.state.removalQuantity.itemId)!.name,result.state.removalQuantity.available,result.reply.startsWith("Remove"));
+    else if(browsing)result.reply=`${CATEGORY_LIST} Which category would you like next?`;
     else if(result.state.pending)result.reply=`For ${getItem(result.state.pending.itemId)!.name}, please choose Half or Full.`;
     else if(result.state.phase==="ask_spice")result.reply=`Please choose ${spiceOptions.join(", ")}.`;
     else result.reply=`${CATEGORY_LIST} Which category would you like?`;

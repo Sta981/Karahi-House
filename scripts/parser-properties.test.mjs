@@ -21,7 +21,9 @@ test("bounded exhaustive replacement/removal properties never append or mutate a
    assert.equal(changed.state.cart[0].itemId,id);
    assert.deepEqual(api.replayCartOperations(initial.cart,changed.operations),changed.state.cart);
   }
-  const removed=api.runTurn(initial,`remove ${name}`);assert.equal(removed.state.cart.length,0);
+  let removed=api.runTurn(initial,`remove ${name}`);
+  if(qty>1){assert.deepEqual(removed.state.cart,initial.cart);assert.equal(removed.operations.length,0);assert.equal(removed.state.removalQuantity.available,qty);removed=api.runTurn(removed.state,String(qty));}
+  assert.equal(removed.state.cart.length,0);
   assert.equal(removed.operations.some(operation=>operation.action==="add"),false);
  }
  const initial=api.runTurn(api.newState(),"garlic naan and plain naan").state;

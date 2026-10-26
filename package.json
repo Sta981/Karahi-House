@@ -15,7 +15,7 @@
     "dev:voice": "tsx scripts/voice-server.ts",
     "start:voice": "tsx scripts/voice-server.ts",
     "test:voice": "tsx --test scripts/voice.test.ts scripts/voice-optimization.test.ts scripts/voice-adaptive.test.ts scripts/voice-reliability.test.ts scripts/voice-playback-continuation.test.ts scripts/voice-buffering.test.ts scripts/voice-access.test.ts scripts/content-audio.test.ts scripts/voice-provenance.test.ts",
-    "test:live": "tsx --test --test-concurrency=1 scripts/live-call-patterns.test.ts scripts/real-mic-patterns.test.ts scripts/phonetic-bounds.test.ts scripts/engine-bounds.test.ts scripts/menu-voice-patterns.test.ts scripts/action-safety.test.ts",
+    "test:live": "tsx --test --test-concurrency=1 scripts/live-call-patterns.test.ts scripts/real-mic-patterns.test.ts scripts/phonetic-bounds.test.ts scripts/engine-bounds.test.ts scripts/menu-voice-patterns.test.ts scripts/action-safety.test.ts scripts/code-switch-removal.test.ts",
     "dev:replay": "tsx scripts/replay-session-dev.ts",
     "voice:analyze": "node scripts/analyze-voice-csv.mjs",
     "voice:cache": "tsx scripts/voice-cache-benchmark.ts",

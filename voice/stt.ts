@@ -1,6 +1,6 @@
 import WebSocket from "ws";
 import source from "../lib/menu-source.json";
-import type { SttEvent, SttModel, SttStream } from "./contracts";
+import { NOVA_MULTILINGUAL_LANGUAGE_HINTS, type SttEvent, type SttModel, type SttStream } from "./contracts";
 import { endpointSettings, type EndpointSettings } from "./endpointing";
 import { sttCloseError } from "./connection-status";
 
@@ -26,6 +26,7 @@ export function sttUrl(model: SttModel, settings = endpointSettings(model),terms
   for (const [key, value] of Object.entries({ ...options, encoding: "linear16", sample_rate: "16000", mip_opt_out: "true" }))
     if (value !== undefined) url.searchParams.set(key, value);
   for (const term of boundedKeyterms([...terms])) url.searchParams.append("keyterm", term);
+  if(model==="nova-3")for(const language of NOVA_MULTILINGUAL_LANGUAGE_HINTS)url.searchParams.append("language_hint",language);
   return url.toString();
 }
 
@@ -87,7 +88,7 @@ export async function openStt(model: SttModel, emit: (event: SttEvent) => void, 
     socket.once("error", () => reject(Error("Deepgram connection failed; check key, credits and network")));
     socket.once("unexpected-response", (_req, res) => { res.resume(); socket.terminate(); reject(Error(`Deepgram handshake HTTP ${res.statusCode}`)); });
   });
-  console.log(JSON.stringify({event:"stt_connected",model,keytermCount:new URL(url).searchParams.getAll("keyterm").length}));
+  console.log(JSON.stringify({event:"stt_connected",model,keytermCount:new URL(url).searchParams.getAll("keyterm").length,languageHints:new URL(url).searchParams.getAll("language_hint")}));
   return {
     configureKeyterms(terms){if(!closed&&socket.readyState===WebSocket.OPEN){const bounded=boundedKeyterms(terms);socket.send(JSON.stringify({type:"Configure",keyterms:bounded}));console.log(JSON.stringify({event:"stt_keyterms_sent",model,keytermCount:bounded.length}));}},
     send(pcm) {

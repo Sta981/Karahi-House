@@ -8,7 +8,7 @@ const PLURALS: Record<string,string> = {
   lassis:"lassi",lasis:"lasi",samosas:"samosa",samosay:"samosa",botis:"boti",
   papadams:"papadam",papadums:"papadum",papads:"papad",
 };
-const FILLERS = new Set(["um","uh","erm","umm","uhh","please","plz","sir","brother","yaar","bhai","jaan","packing","parcel","takeout","regular","chahiye","dena","dein","deejiye","dijiye","wali","wala"]);
+const FILLERS = new Set(["um","uh","erm","umm","uhh","please","plz","sir","brother","yaar","bhai","jaan","packing","parcel","takeout","regular","chahiye","dena","dein","deejiye","dijiye","deyo","deo","diyo","dyo","chahida","chahide","wali","wala"]);
 const FLAVORS=[...new Set(MENU.filter(item=>/lassi$/i.test(item.name)).map(item=>item.name.toLowerCase().split(" ")[0]))];
 const BREAD_CONTEXT=new Set(["garlic","plain","cheese","chili","onion","keema"]);
 const NAAN_MISHEARINGS=new Set(["none","knot","nun","non"]);

@@ -7,6 +7,7 @@ import { LanguageModel, getLanguageModel, parseLlmReply } from "./llm";
 import { RoutingEvent, recordTurn } from "./turn-metrics";
 import { MENU_SOURCE_SHA256 } from "./menu";
 import type { CartOperation } from "./cart-journal";
+import { normalizeCodeSwitch } from "./code-switch";
 
 export interface SmartTurnResult {
   reply: string;
@@ -40,17 +41,18 @@ export async function runSmartTurn(
     options.onProfile?.({recognitionMs,dialogMs,wallMs:performance.now()-profileStart,route:routing.route});
     return { ...result, routing };
   };
-  const trimmed = text.trim();
+  const normalized=normalizeCodeSwitch(text.trim(),state.phase==="ask_name");
+  const trimmed = normalized.text;
   if (!trimmed) {
     return finish({ reply: GREETING, state: { ...state, turns: state.turns + 1 }, matches: [], usedLLM: false },
       { route: "local", outcome: "local", candidateCount: 0 });
   }
 
-  const recognitionStart=performance.now();const analysis = analyzeUtterance(trimmed);recognitionMs=performance.now()-recognitionStart;
+  const recognitionStart=performance.now();const analysis = normalized.unsupportedScript?{matches:[],issues:[]}:analyzeUtterance(trimmed);recognitionMs=performance.now()-recognitionStart;
   const dialogStart=performance.now();const local = runTurn(state, trimmed, analysis);dialogMs=performance.now()-dialogStart;
   // Pending confirmations, staff review and checkout remain local even if the
   // legacy dialog marks a failed clarification as needing conversational help.
-  const guarded = state.phase !== "open" || state.recognition || state.pendingCorrection || state.needsReview ||
+  const guarded = state.phase !== "open" || state.recognition || state.pendingCorrection || state.removalQuantity || state.needsReview ||
     local.state.needsReview || analysis.issues.length || requiresStaffReview(trimmed) || local.operations?.length || local.disclosure?.length;
   if (!local.needsLLM || guarded) {
     return finish({ ...local, usedLLM: false }, { route: "local", outcome: "local", candidateCount: 0 });

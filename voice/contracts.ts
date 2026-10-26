@@ -1,5 +1,6 @@
 // Audio transports depend on this contract; the order engine has no audio imports.
 export type SttModel = "flux" | "nova-3" | "nova-3-en-IN";
+export const NOVA_MULTILINGUAL_LANGUAGE_HINTS=["en","hi"] as const;
 export type SttEvent = { type: "speech" } | { type: "partial"; text: string } |
   { type: "final"; text: string; audioEndSeconds: number | null; endpointReason?: string; continuationOf?:string;fragment?:string } | { type: "error"; code: string; closeCode?: number } | {type:"configuration";accepted:boolean};
 export interface SttStream { send(pcm: Buffer): void; close(): void; configureKeyterms?(terms:string[]):void }

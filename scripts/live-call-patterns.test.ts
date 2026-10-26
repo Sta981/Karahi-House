@@ -22,13 +22,13 @@ test("notes cannot exempt an unresolved food compound from the safety boundary",
  assert.equal(call("one rice on the side").state.cart.length,1);
 });
 test("removal uses the current cart, tolerates noise and reads removed quantity",()=>{
- const result=call("one mango lassi and three garlic naan mild spice","remove the garlic now please","yes");
+ const result=call("one mango lassi and three garlic naan mild spice","remove all the garlic now please","yes");
  assert.deepEqual(result.state.cart.map(line=>line.itemId),["MANGO_LASSI"]);assert.match(result.reply,/Removed 3 Garlic Naan/);
 });
 test("tied removal names enumerate cart lines; a later partial answer removes only its target",()=>{
  let result=call("two garlic naan and one plain naan mild spice","remove naan");
  assert.equal(result.state.cart.length,2);assert.match(result.reply,/You have.*Garlic Naan.*Plain Naan/);
- result=runTurn(result.state,"garlic please");assert.ok(result.state.removalConfirmation);result=runTurn(result.state,"yes");assert.equal(result.state.cart.length,1);assert.match(result.reply,/Removed 2 Garlic Naan/);
+ result=runTurn(result.state,"garlic please");assert.ok(result.state.removalQuantity);assert.match(result.reply,/one or both/);result=runTurn(result.state,"both");if(result.state.removalConfirmation)result=runTurn(result.state,"yes");assert.equal(result.state.cart.length,1);assert.match(result.reply,/Removed 2 Garlic Naan/);
  const uncertain=call("one garlic naan mild spice and one mango lassi","remove the garlic coconut dish");assert.equal(uncertain.state.cart.length,2);assert.ok(uncertain.state.pendingCorrection);assert.match(uncertain.reply,/You have.*Garlic Naan.*Mango Lassi/);
 });
 test("pending size accepts constrained STT answers; those words do not create dishes",()=>{
