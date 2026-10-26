@@ -29,3 +29,13 @@ export function readStagedBlob(directory,file,expectedBytes){
   try{return execFileSync("git",["-C",directory,"show",`:${file}`],{maxBuffer:Math.max(1024*1024,expectedBytes+65536),stdio:["ignore","pipe","pipe"]});}
   catch{throw Error("Staged blob verification failed; publication stopped without exposing its contents");}
 }
+
+export function stageSnapshotPaths(directory,files){
+  if(!files.length)return;
+  if(files.some(file=>file.includes("\0")||!publishable(file)))throw Error("Invalid publication path; staging stopped");
+  // Keep the exact allowlist, but avoid Windows' command-line length limit.
+  // NUL-delimited literal paths also preserve spaces and bracket characters.
+  execFileSync("git",["-C",directory,"--literal-pathspecs","add","--pathspec-from-file=-","--pathspec-file-nul"],{
+    input:Buffer.from(files.join("\0")+"\0"),stdio:["pipe","pipe","pipe"],
+  });
+}

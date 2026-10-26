@@ -16,6 +16,7 @@ import {runtimeInfo} from "../voice/runtime-info";
 import {endpointSettings} from "../voice/endpointing";
 import {DemoTicketService} from "../lib/demo-tickets";
 import { acquireDevelopmentCache } from "./lib/dev-cache.mjs";
+import {romanTranscript} from "../voice/roman-transcript";
 async function main() {
   const releaseCache=acquireDevelopmentCache(process.cwd(),"browser");
   const build={commit:"d".repeat(40),dirty:false},runtime=runtimeInfo(build,"flux",endpointSettings("flux"),{provider:"fixture",model:"fixture-tone"},KEYTERMS.length,750,"adaptive");
@@ -44,11 +45,12 @@ async function main() {
         if(Math.sqrt(sum/(pcm.length/2))>.025){loud++;quiet=0;if(loud===4)speaking=true;}
         else{quiet++;loud=0;if(speaking&&quiet===4){speaking=false;turns++;void session.turn(turns===1?"one rice":turns===2?"one mango lassi":"two papadam",turns);}}return;}
       const msg=JSON.parse(data.toString());
+      if(msg.type==="fixture_roman_display"){const text="मुझे दो garlic naan चाहिए";emit({type:"partial",text,displayText:romanTranscript(text)});emit({type:"transcript",text,displayText:romanTranscript(text),generation:0});}
       if(msg.type==="ping")emit({type:"pong",sent:msg.sent,server:performance.now()});
       if(msg.type==="fixture_failure")emit({type:"error",code:"tts_failed",recoverable:true});
       if(msg.type==="fixture_close"){emit({type:"error",code:"stt_audio_timeout"});ws.close(1011,"STT failed");}
       if(msg.type==="fixture_goodbye")void session.turn("goodbye");
-      if(msg.type==="fixture_script_order")void(async()=>{for(const phrase of ["one mango lassi","checkout","Synthetic Guest","yes"])await session.turn(phrase);})();
+      if(msg.type==="fixture_script_order")void(async()=>{for(const phrase of ["one mango lassi","checkout","Synthetic Guest","no"])await session.turn(phrase);})();
       if(msg.type==="start")emit({type:"ready",model:msg.model,tts:"fixture",runtime,sampleRate:16000,frameMs:80,keyterms:KEYTERMS.length});
       if(msg.type==="mic_ready")void session.greet();
       if(msg.type==="barge_in"){bargeIns++;session.interrupt({source:msg.source,energy:msg.energy,threshold:msg.threshold,speechMs:msg.speechMs});}
@@ -85,6 +87,8 @@ async function main() {
     try{await page.getByRole("status").filter({hasText:"Listening"}).waitFor({timeout:30000});}catch(error){report.setupStatus=await page.getByRole("status").innerText();report.pageErrors=failures;throw error;}
     assert.equal(await page.evaluate(()=>(window as any).__voiceFixture.socketBeforeMic),false);report.microphoneBeforeStt=true;report.localPasswordHidden=true;
     assert.ok((await page.getByTestId("voice-build").innerText()).includes(build.commit));assert.match(await page.getByTestId("voice-runtime").innerText(),/flux-general-en.*750 ms.*fixture-tone/);report.runtimeProvenanceVisible=true;
+    await page.evaluate(()=>(window as any).__voiceFixture.sockets[0].send(JSON.stringify({type:"fixture_roman_display"})));
+    await page.getByText("mujhe do garlic naan chahiye",{exact:false}).first().waitFor();assert.equal(await page.getByText("मुझे दो garlic naan चाहिए",{exact:false}).count(),0);report.romanTranscriptVisible=true;
     await page.waitForTimeout(150);const initialStops=await page.evaluate(()=>(window as any).__voiceFixture.stops);
     await page.evaluate(()=>(window as any).__voiceFixture.speak());
     await page.waitForFunction(()=>document.body.innerText.includes("× Rice"),{},{timeout:15000});
@@ -124,6 +128,7 @@ async function main() {
     await page.evaluate(()=>(window as any).__voiceFixture.sockets.at(-1).send(JSON.stringify({type:"fixture_script_order"})));
     await page.getByTestId("demo-ticket").waitFor({timeout:15000});assert.match(await page.getByTestId("demo-ticket").innerText(),/pending_acceptance/);assert.match(await page.getByTestId("demo-ticket").innerText(),/email is not configured/);
     const ticketDownload=page.waitForEvent("download");await page.getByRole("button",{name:"Download redacted DEMO ticket"}).click();const ticketFile=await ticketDownload,ticketStream=await ticketFile.createReadStream(),ticketChunks=[];for await(const chunk of ticketStream!)ticketChunks.push(chunk);const downloaded=JSON.parse(Buffer.concat(ticketChunks).toString("utf8"));assert.equal(downloaded.label,"DEMO");assert.equal(downloaded.status,"pending_acceptance");assert.equal(downloaded.sms.sent,false);assert.equal(downloaded.sms.status,"simulated");assert.equal(downloaded.subtotalCents,450);report.confirmedDemoTicketAndDownload=true;
+    await page.waitForFunction(()=>!(document.querySelector("button.btn-primary") as HTMLButtonElement)?.disabled,{},{timeout:15000});assert.equal(await page.evaluate(()=>(window as any).__voiceFixture.tracks.every((track:MediaStreamTrack)=>track.readyState==="ended")),true);report.confirmedOrderGoodbyeReleasesMicAfterPlayback=true;
     assert.deepEqual(assetFailures,[],"No page asset may fail during the browser walkthrough");
     report.ok=true;report.turns=turns;report.bargeIns=bargeIns;report.stoppedPlaybackSources=after;report.micReleased=released;report.latencyTableFixtureOnly=table;
   }catch(error){report.ok=false;report.failure=error instanceof Error?error.message:"Browser failed";}

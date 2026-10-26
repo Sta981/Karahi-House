@@ -1,8 +1,10 @@
 import { safeTranscript,loggedCart,type VoiceLogRow,type LatencyStages } from "./turn-log";
 import type { VoiceRuntimeInfo } from "./runtime-info";
+import {romanTranscript} from "./roman-transcript";
 export class TurnRecorder {
   private rows=new Map<number,VoiceLogRow>();
   private transcript="";
+  private roman="";
   constructor(private meta:{callId:string;location:string;model:string;profile:string;runtime?:VoiceRuntimeInfo},private publish:(row:VoiceLogRow)=>void){}
   event(event:Record<string,unknown>) {
     if(event.type==="tts_telemetry"){
@@ -11,10 +13,15 @@ export class TurnRecorder {
       const values=Object.fromEntries(Object.entries(data).filter(([key,value])=>allowed.includes(key)&&(typeof value==="number"&&Number.isFinite(value)||typeof value==="boolean"||typeof value==="string"&&/^[a-z_]{1,32}$/.test(value))));
       row.ttsChunks??=[];if(row.ttsChunks.length<2048)row.ttsChunks.push(values as Record<string,number|string|boolean>);return;
     }
-    if(event.type==="transcript")this.transcript=safeTranscript(String(event.text));
+    if(event.type==="transcript"){
+      const raw=safeTranscript(String(event.text)),roman=safeTranscript(romanTranscript(raw));
+      const phone=/\[(?:callback turn|phone)(?: redacted)?\]/i.test(roman);
+      this.transcript=phone?"[callback turn redacted]":raw;this.roman=phone?"[callback turn redacted]":roman;
+    }
     if(event.type==="reply"){
       const generation=Number(event.generation);
       const row:VoiceLogRow={turnId:`${this.meta.callId}:${generation}`,atUtc:new Date().toISOString(),location:this.meta.location,model:this.meta.model,endpointProfile:this.meta.profile,transcript:this.transcript,matchedCart:loggedCart(event.cart as Record<string,any>[]),endpointReason:String(event.endpointReason??"unknown"),status:"awaiting_audio",engineMs:Number(event.engineMs),ttsFirstByteMs:null,firstByteCached:false,speculativeHit:!!event.speculativeHit,preparationMs:Number(event.preparationMs??0),latency:null};
+      row.romanTranscript=this.roman;
       if(this.meta.runtime)row.runtime=structuredClone(this.meta.runtime);
       row.replyTextLength=String(event.text??"").length;this.rows.set(generation,row);this.publish(row);
       const profile=event.engineProfile as Record<string,unknown>|undefined;

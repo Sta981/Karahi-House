@@ -2,6 +2,10 @@
 
 For Hindi mixed with English, select **Nova-3 multilingual (English/Hindi mix)** on `/voice`. Nova-3 Indian English is an English configuration; selecting an Indian English accent does not enable other languages. The English Flux option also stays English. No model winner is claimed.
 
+The multilingual option is now the default for mixed-language testing. The live interim/final transcripts and turn-log table show **Roman letters**. The server uses known-word spellings plus pinned [Sanscript 1.3.3](https://github.com/indic-transliteration/sanscript.js) for Devanagari, Gurmukhi, Urdu/Arabic, Bengali, Gujarati, Tamil, Telugu, Kannada, Malayalam and Sinhala script. Generic transliteration can be approximate, especially where vowels are unwritten. Other unsupported words show a placeholder. This does not translate a language or make an English-only speech model multilingual.
+
+Romanization is presentation-only and never feeds item/quantity matching. The engine receives the actual STT text and its explicit safe vocabulary. Exported CSVs retain the redacted original in `transcript_redacted` and add `transcript_roman`. Both fields redact phone candidates, including native-script digit words. No audio is stored and no extra language API is called.
+
 The multilingual connection now sends `model=nova-3`, `language=multi`, and repeated `language_hint=en` / `language_hint=hi`. Hints bias detection rather than restrict it and remain fixed during the connection. They appear in the runtime information and exported `stt_config`. This change uses the existing `DEEPGRAM_API_KEY`; no new key or LLM is required. See [Deepgram's language-prompting documentation](https://developers.deepgram.com/docs/nova-3-language-prompting).
 
 The local engine handles a small explicit vocabulary: Roman Urdu/Hindi/Punjabi ordering fillers and numbers, Half/Full answers, common spice phrases, done phrases, and prefix/postfix removals. Common Devanagari, Shahmukhi/Urdu and Gurmukhi tokens map to the same local operations. This is text normalization, **not evidence that the STT recognizes those languages**. Unknown script is preserved and triggers a request to repeat in English; it cannot silently disappear and leave an unintended item/quantity behind. Names and callbacks bypass this translation.
@@ -22,6 +26,8 @@ Run `npm run dev:voice`, open `/voice`, select the multilingual option and expor
 | “Ek.” / “Dono.” | Remove one / both of that pending equivalent item group. |
 | “Aur kuch nahi.” | End collection; ask the whole-order spice question if needed. |
 | “Bilkul mirch nahi.” | No Spice; no negative dish-replacement interpretation. |
+| “Yahi order hai.” / “It's done now.” | Start checkout; resolve required choices/name, then read the complete order once and ask “Anything else?”. |
+| “Nhi.” / “Enough.” after that read-back | Confirm no more items, keep the request pending staff acceptance, say thanks and end after playback. |
 
 Enter the intended wording beside any wrong transcript in the page's local mishearing export. Missing/wrong STT text and wrong engine actions are separate failures. Twelve new development test groups cover these patterns and removal properties; live multilingual recognition/latency has not been measured for this revision. Replies remain English.
 

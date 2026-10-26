@@ -1,11 +1,13 @@
 import { MENU,MODIFIERS } from "../lib/menu";
 import { speechText } from "../lib/speech";
 import type { SttModel } from "./contracts";
+import {isCompletionSignal} from "../lib/closing";
 const endings=[...new Set(MENU.flatMap(item=>[item.name,item.website_name,...item.aliases].filter((name):name is string=>!!name).map(speechText)))];
 export type Completion="complete"|"incomplete"|"uncertain";
 export function phraseCompletion(text:string):Completion{
  const heard=speechText(text).trim();
  if(/\b(?:and|aur|with|plus|the|a|an|one|two|three|four|five|six|seven|eight|nine|ten|aik|ek|do|teen|char|chaar|paanch|\d+)\s*$/.test(heard))return "incomplete";
+ if(isCompletionSignal(text))return "complete";
  if(/\b(?:half|full|haf|fool|that s all|thats all|that will be all|nothing else|yes|no|correct|bas)\s*$/.test(heard))return "complete";
  if(MODIFIERS.spice_level.options.some(option=>heard.endsWith(speechText(option)))||/\b(?:mild|medium|spicy)\s*$/.test(heard))return "complete";
  return endings.some(ending=>heard===ending||heard.endsWith(` ${ending}`))?"complete":"uncertain";

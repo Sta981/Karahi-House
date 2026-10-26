@@ -7,9 +7,11 @@ import type { DialogState,CallSummary } from "../lib/dialog";
 import type {DemoTicket} from "../lib/demo-ticket-types";
 import { rollbackCartOperations,type CartOperation } from "../lib/cart-journal";
 import type { BargeTrigger } from "./barge-in";
+import {romanTranscript} from "./roman-transcript";
+import {isCompletionSignal} from "../lib/closing";
 
 export class VoiceSession {
-  private state = newState();
+  private state = newState({closingMode:"anything_else"});
   private generation = 0;
   private abort?: AbortController;
   private closed = false;
@@ -19,7 +21,7 @@ export class VoiceSession {
     if(this.state.removalQuantity)return ["one","two","three","all","both","only one","ek","aik","do","dono","sab","no","cancel",...Array.from({length:this.state.removalQuantity.available},(_,index)=>String(index+1))];
     if(this.state.pending)return ["Half","Full","have","haf","fool","bot"];
     if(this.state.phase==="ask_spice")return [...MODIFIERS.spice_level.options,"mild","medium","hot"];
-    if(this.state.phase==="confirm"||this.state.removalConfirmation||this.state.answerConfirmation||this.state.browsing||/Anything else\?$/.test(this.state.lastReply??""))return ["yes","no","yeah","nope","that's all","that's it"];
+    if(this.state.phase==="confirm"||this.state.removalConfirmation||this.state.answerConfirmation||this.state.browsing||/Anything else\?$/.test(this.state.lastReply??""))return ["yes","no","yeah","nope","that's all","that's it","enough","it's over","it's done now","nahi","nhi","yahi order hai"];
     return [];
   }
   recognitionHints():string[]{
@@ -42,7 +44,7 @@ export class VoiceSession {
     let supersedesGeneration:number|undefined;
     if(continuation){
       const previous=this.checkpoint;
-      const finite=/^(?:half|full|haf|fool|have|yes|no|chicken|goat|lamb|beef|fish|shrimp|paneer|karahi|naan|spicy|extra spicy|medium(?: spice)?|mild(?: spice)?|no spice)[.!]?$/i.test(continuation.fragment.trim());
+      const finite=isCompletionSignal(continuation.fragment)||/^(?:half|full|haf|fool|have|yes|no|chicken|goat|lamb|beef|fish|shrimp|paneer|karahi|naan|spicy|extra spicy|medium(?: spice)?|mild(?: spice)?|no spice)[.!]?$/i.test(continuation.fragment.trim());
       if(previous?.text===continuation.of&&!finite&&!['ask_name','confirm','closed'].includes(this.state.phase)&&!this.state.checkoutRequested){
         const cart=previous.committed?rollbackCartOperations(this.state.cart,previous.operations):structuredClone(previous.before.cart);
         this.state={...structuredClone(previous.before),cart};supersedesGeneration=previous.generation;
@@ -51,7 +53,7 @@ export class VoiceSession {
     }
     this.interrupt();
     const generation = this.generation, finalAt = performance.now();
-    this.emit({ type: "transcript", text, generation, audioEndSeconds, finalAt, endpointReason });
+    this.emit({ type: "transcript", text, displayText:romanTranscript(text), generation, audioEndSeconds, finalAt, endpointReason });
     const start = performance.now(),cpu=process.cpuUsage();let engineProfile:Record<string,unknown>|undefined;
     const checkpoint={before:structuredClone(this.state),text,operations:[] as CartOperation[],committed:false,generation};this.checkpoint=checkpoint;
     // No provider is touched by default, even when Groq credentials exist.
@@ -65,14 +67,14 @@ export class VoiceSession {
     this.emit({ type: "reply", text: result.reply, cart: this.state.cart, generation, usedLLM: result.usedLLM, engineMs,engineProfile:{...engineProfile,cpuMs:(usedCpu.user+usedCpu.system)/1000,phase:checkpoint.before.phase,cartLinesBefore:checkpoint.before.cart.length},supersedesGeneration, finalAt, endpointReason, speculativeHit:false, preparationMs:0 });
     const notification=result.endCall&&result.summary?.kind==="order"&&this.onConfirmed?
       this.onConfirmed(result.summary,!!this.state.callbackNumber,ticket=>this.emit({type:"demo_ticket",ticket})).catch(()=>{this.emit({type:"notification_error",message:"The DEMO notification failed. The order has not been accepted."});}):undefined;
-    await this.reply(result.reply, engineMs, finalAt, generation);
+    const audioCompleted=await this.reply(result.reply, engineMs, finalAt, generation);
     // Email runs alongside speech. Wait only before releasing the final call,
     // so its final receipt can reach the tab; first-audio latency is unaffected.
     if(notification)await notification;
-    if(result.endCall&&generation===this.generation&&!this.closed)this.emit({type:"call_end",generation,summary:result.summary});
+    if(result.endCall&&audioCompleted&&generation===this.generation&&!this.closed)this.emit({type:"call_end",generation,summary:result.summary});
   }
   private async reply(text: string, engineMs: number, finalAt: number, generation = this.generation) {
-    if (this.closed) return;
+    if (this.closed) return false;
     const abort = new AbortController(); this.abort = abort;
     const requestedAt = performance.now(); let first = true,contentFirst=true,sentBytes=0,kind:"neutral"|"informative"="informative",hasSegment=false;
     const audioPlan = this.tts.plan?.(text);
@@ -97,11 +99,13 @@ export class VoiceSession {
         this.emit(framed);
         sentBytes+=chunk.length;
       }
-      if (!abort.signal.aborted && generation === this.generation) this.emit({ type: "audio_end", generation });
+      if (!abort.signal.aborted && generation === this.generation){this.emit({ type: "audio_end", generation });return sentBytes>0;}
+      return false;
     } catch(error) {
       const reason=error instanceof Error&&/rate limit|timeout|connection|PCM/i.test(error.message)?/rate limit/i.test(error.message)?"rate_limit":/timeout/i.test(error.message)?"timeout":/PCM/i.test(error.message)?"invalid_pcm":"connection":"synthesis";
       if (!abort.signal.aborted && !this.closed) this.emit({ type: "error", code: "tts_failed", reason, recoverable: true, generation, message: "Voice output failed. Read the reply below; your microphone and order are still active. You can keep speaking." });
+      return false;
     }
   }
-  close() { this.closed = true; this.abort?.abort(); this.state = newState();this.checkpoint=undefined; }
+  close() { this.closed = true; this.abort?.abort(); this.state = newState({closingMode:"anything_else"});this.checkpoint=undefined; }
 }

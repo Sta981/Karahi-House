@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { GREETING,ORDER_SPICE_QUESTION } from "../lib/dialog";
+import { GREETING,ORDER_SPICE_QUESTION,VOICE_ORDER_GOODBYE } from "../lib/dialog";
 import { MENU,MODIFIERS,MENU_SOURCE_SHA256 } from "../lib/menu";
 import { auraPronunciation } from "./pronunciation.mjs";
 import { browsePage, MENU_CATEGORIES, CATEGORY_LIST, MENU_FALLBACK } from "../lib/menu-browsing";
@@ -20,6 +20,8 @@ export const FIXED_PHRASES=[
  {id:"hello",text:"Hello! Would you like to order or ask about the menu?"},
  {id:"welcome",text:"You're welcome! Anything else?"},
  {id:"pending_acceptance",text:"Your demo request is pending staff acceptance. It has not been accepted by the restaurant."},
+ {id:"voice_order_goodbye",text:VOICE_ORDER_GOODBYE},
+ {id:"tax_disclosure",text:"tax is not configured."},{id:"pickup_readback",text:"Pickup, payment at pickup."},
  ...[" for the order. ","Did you mean ","Updated: ","You have ","Which existing item should I remove?","Which category would you like?","Which protein and karahi style would you like?","No problem. Anything else?","The team needs to review that before any order is accepted. What callback number should they use?",`I couldn't confirm that request, so I've marked it for staff review. ${CATEGORY_LIST} Which category would you like?`,"dollars","dollar","cents","cent","and"].map((text,index)=>({id:`common_${index}`,text})),
  ...MENU.filter(item=>item.size).map(item=>({id:`size_question_${item.id}`,text:`Half or Full for ${item.name}?`})),
  ...["Chicken, Lamb or Goat?","Chicken, Lamb, Goat or Beef?","Chicken, Lamb or Beef?","Keema Karahi or Keema Naan?","Which korma: Chicken, Goat or Lamb?","Which chicken dish: karahi, tikka masala or korma?"].map((text,index)=>({id:`family_question_${index}`,text})),

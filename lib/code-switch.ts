@@ -2,6 +2,9 @@
 // Unknown script is preserved and rejected before it can disappear in the
 // ASCII matcher. Customer names/callbacks bypass this normalization.
 const WORDS:Record<string,string>={
+  "यही":"yahi","येही":"yehi","ऑर्डर":"order","आर्डर":"order","इतना":"itna","खत्म":"khatam","ख़त्म":"khatam","सही":"sahi",
+  "یہی":"yahi","آرڈر":"order","ہے":"hai","ختم":"khatam","ہاں":"haan",
+  "ਇਹੀ":"ehi","ਆਰਡਰ":"order","ਹੈ":"hai","ਖਤਮ":"khatam","ਹੋ":"ho","ਗਿਆ":"gaya","ਠੀਕ":"theek","ਹਾਂ":"haan",
   "एलर्जी":"allergy","الرجی":"allergy","ਐਲਰਜੀ":"allergy",
   "एक":"ek","दो":"do","तीन":"teen","चार":"chaar","पांच":"paanch","पाँच":"paanch","छह":"chay","सात":"saat","आठ":"aath","नौ":"nau","दस":"das",
   "मुझे":"mujhe","हमें":"hume","मैनू":"mainu","मैनु":"mainu","चाहिए":"chahiye","चाहिये":"chahiye","दे":"de","देना":"dena","दें":"dein","दीजिए":"dijiye",
@@ -17,12 +20,13 @@ const WORDS:Record<string,string>={
   "ਚਿਕਨ":"chicken","ਬਿਰਯਾਨੀ":"biryani","ਨਾਨ":"naan","ਅੱਧਾ":"aadha","ਪੂਰਾ":"poora","ਮਿਰਚ":"mirch","ਘੱਟ":"ghatt","ਵੱਧ":"wadh","ਹੋਰ":"hor","ਕੁਝ":"kujh","ਬੱਸ":"bas","ਲੱਸੀ":"lassi","ਅੰਬ":"mango",
 };
 export interface NormalizedTurn { text:string; changed:boolean; unsupportedScript:boolean }
+export const romanKnownWord=(word:string):string|undefined=>Object.hasOwn(WORDS,word)?WORDS[word]:undefined;
 export function normalizeCodeSwitch(raw:string,preserveIdentity=false):NormalizedTurn{
   if(preserveIdentity||/^(?:my name is|this is|i am|i'm|callback|call back|phone|contact|mobile)\b/i.test(raw.trim()))return {text:raw,changed:false,unsupportedScript:false};
   let text=raw.normalize("NFKC").replace(/[\u0660-\u0669\u06F0-\u06F9\u0966-\u096F\u0A66-\u0A6F]/g,digit=>{
     const code=digit.charCodeAt(0),base=code>=0x0a66?0x0a66:code>=0x0966?0x0966:code>=0x06f0?0x06f0:0x0660;
     return String(code-base);
-  }).replace(/[\p{L}\p{M}]+/gu,word=>WORDS[word]??word);
+  }).replace(/[\p{L}\p{M}]+/gu,word=>romanKnownWord(word)??word);
   text=text.replace(/\b(?:mainu|mainoo|mennu|menuu)\b/gi,"mujhe")
     .replace(/\b(?:sirf|siraph)\b/gi,"only").replace(/\b(?:dono|donon|dovein|doven)\b/gi,"both")
     .replace(/\b(?:saare|saray|saary|sab|saarey)\b/gi,"all")
@@ -34,7 +38,7 @@ export function normalizeCodeSwitch(raw:string,preserveIdentity=false):Normalize
     .replace(/\b(?:aadha|adha|addha|adhi)\b/gi,"half").replace(/\b(?:poora|pura|poori)\b/gi,"full");
   text=text.replace(/\b(?:aur\s+(?:kuch|kuchh)\s+(?:nahi|nahin)|hor\s+(?:kuch|kujh)\s+(?:nahi|nai)|bas\s+(?:itna(?:\s+hi)?|ho\s+gaya|ji))\b/gi,"that's all");
   if(/^(?:haan(?:\s+ji)?|han(?:\s+ji)?|hanji|ji\s+haan|theek\s+hai)[.!]?$/i.test(text.trim()))text="yes";
-  if(/^(?:nahi|nahin|nai)(?:\s+ji)?[.!]?$/i.test(text.trim()))text="no";
+  if(/^(?:nahi|nhi|nahin|nai)(?:\s+ji)?[.!]?$/i.test(text.trim()))text="no";
   const command="(?:hata(?:o)?|nikal(?:o)?|kadd|kad|kadh)(?:\\s+(?:do|dein|dena|deo|deyo|diyo|dyo))?";
   const suffix=text.trim().match(new RegExp(`^(.+?)\\s+((?:(?:mat|na|nahi|nahin)\\s+)?${command})[.!]?$`,"i"));
   const prefix=text.trim().match(new RegExp(`^((?:(?:mat|na|nahi|nahin)\\s+)?${command})\\s+(.+?)[.!]?$`,"i"));

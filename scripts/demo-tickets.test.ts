@@ -46,7 +46,7 @@ test("voice sends only after explicit read-back confirmation and starts audio be
  const service=new DemoTicketService({env:fixtureEnv,fetch:async()=>{sent++;await gate;return new Response("{}",{status:200});}}),events:any[]=[];
  const session=new VoiceSession({name:"fixture",warm:async()=>{},close(){},async *speak(){yield Buffer.from([1,0]);}},event=>events.push(event),false,async(summary,callbackProvided,publish)=>{await service.submit(summary,{key:"voice-confirmed",callbackProvided},publish).settled;});
  try{for(const text of ["one mango lassi","checkout","Synthetic Guest"])await session.turn(text);assert.equal(sent,0);
-  const from=events.length,turn=session.turn("yes");for(let i=0;i<10&&!events.slice(from).some(event=>event.type==="audio_start");i++)await new Promise(resolve=>setImmediate(resolve));
+  const from=events.length,turn=session.turn("no");for(let i=0;i<10&&!events.slice(from).some(event=>event.type==="audio_start");i++)await new Promise(resolve=>setImmediate(resolve));
   assert.equal(sent,1);assert.ok(events.slice(from).some(event=>event.type==="audio_start"));assert.ok(events.some(event=>event.type==="demo_ticket"&&event.ticket.email.status==="sending"));assert.ok(!events.some(event=>event.type==="call_end"));
   release();await turn;assert.ok(events.some(event=>event.type==="demo_ticket"&&event.ticket.email.status==="provider_accepted"));assert.equal(events.at(-1).type,"call_end");await session.turn("yes");assert.equal(sent,1);
  }finally{release();session.close();service.clear();}

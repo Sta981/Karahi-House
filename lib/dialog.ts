@@ -10,6 +10,7 @@ import { speechTokens } from "./speech";
 import { menuBrowsing, CATEGORY_LIST, MENU_FALLBACK, type BrowseState } from "./menu-browsing";
 import { classifyTurn, cartChanges, permitsCart, desiredTotal, equivalentLine, spokenLine, type TurnIntent } from "./turn-safety";
 import { normalizeCodeSwitch } from "./code-switch";
+import {isCompletionSignal,isNoMoreAnswer,wantsMore} from "./closing";
 
 export interface CartLine {
   itemId: string; name: string; qty: number; size?: "Half" | "Full";
@@ -35,6 +36,7 @@ export interface DialogState {
   browsing?:BrowseState; menuQuestionMisses?:number;
   repetition?:{itemId:string;choices:number[];portion?:"half"|"full";spiceLevel?:string;notes?:string[]};
   lastIntent?:TurnIntent;
+  closingMode?:"correct"|"anything_else";readbackStamp?:string;
 }
 export interface CallSummary {
   kind: "order" | "inquiry" | "catering"; status: "pending_acceptance" | "needs_review";
@@ -43,7 +45,7 @@ export interface CallSummary {
   subtotal: number; subtotalCents: number; notes: string[]; transcriptHint: string;
 }
 export interface TurnResult { reply: string; state: DialogState; matches: Match[]; operations?:CartOperation[]; summary?: CallSummary; needsLLM?: boolean; endCall?: boolean; intent?:TurnIntent; disclosure?:string[]; safetyRollback?:boolean }
-export function newState(): DialogState { return { menuHash: MENU_SOURCE_SHA256, phase: "open", cart: [], notes: [], turns: 0 }; }
+export function newState(options?:Pick<DialogState,"closingMode">): DialogState { return { menuHash: MENU_SOURCE_SHA256, phase: "open", cart: [], notes: [], turns: 0,...options }; }
 // Finite-answer repairs belong only to an active question, never menu aliases.
 function constrainedAnswer(text:string,kind:"size"|"spice"|"yesno",choices:string[]):{value?:string;confirm?:string}{
   const tokens=speechTokens(text).filter(word=>!["the","a","one","please","size","portion","make","it","that","i","want","with"].includes(word));
@@ -59,6 +61,7 @@ function constrainedAnswer(text:string,kind:"size"|"spice"|"yesno",choices:strin
   return {};
 }
 export const GREETING = `Thanks for calling ${RESTAURANT.name}. What would you like?`;
+export const VOICE_ORDER_GOODBYE="Thanks for calling Karahi House. Your demo request is pending staff acceptance.";
 const money = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 export function cartTotalCents(cart: CartLine[]): number {
   return cart.reduce((total, line) => total + unitPriceCents(getItem(line.itemId)!, line.size) * line.qty, 0);
@@ -79,7 +82,12 @@ export function requiresStaffReview(text: string): boolean {
   return /\b(?:allerg(?:y|ies|ic|ens?)|(?:speak|talk|transfer|connect)(?: me)? (?:to|with) (?:a |the )?(?:person|human|manager|staff|operator)|real person|human agent|want (?:a |the )?(?:person|manager|staff))\b/i.test(text);
 }
 const YES = /^(?:yes|yeah|yep|correct|haan|han|ji|okay|ok|sure)(?=$|[\s,.!])/i;
-const DONE = /\b(?:that'?s (?:all|it)|that (?:will|would) be all|nothing else|checkout|check out|bas|khatam|i'?m done|end (?:the |this )?call|goodbye|bye)\b/i;
+const DONE = {test:isCompletionSignal};
+const reviewStamp=(s:DialogState)=>JSON.stringify([s.cart,s.customerName,s.orderType,s.needsReview??false]);
+function reviewOrder(s:DialogState):string{
+ s.phase="confirm";s.readbackStamp=reviewStamp(s);
+ return `Please check: ${cartSpoken(s.cart)}. Subtotal ${money(cartTotalCents(s.cart))}; tax is not configured. Pickup, payment at pickup. ${s.closingMode==="anything_else"?"Anything else?":"Is that correct?"}`;
+}
 const spiceOptions = MODIFIERS.spice_level.options;
 export const ORDER_SPICE_QUESTION=`Spice for the order: ${spiceOptions.join(", ")}?`;
 function spiceFrom(text: string): string | undefined {
@@ -108,7 +116,7 @@ function modifierQuestion(s: DialogState): string | undefined {
     const asked=s.spiceAsked;s.spiceAsked=true;
     return asked?`Please choose: ${spiceOptions.join(", ")}.`:ORDER_SPICE_QUESTION;
   }
-  if(s.checkoutRequested&&s.cart.length){s.phase="ask_name";return "What name for pickup?";}
+  if(s.checkoutRequested&&s.cart.length){if(s.customerName)return reviewOrder(s);s.phase="ask_name";return "What name for pickup?";}
   s.phase = "open";
 }
 function pendingQuestion(s:DialogState):string|undefined{
@@ -122,7 +130,7 @@ function pendingQuestion(s:DialogState):string|undefined{
   if(s.spiceClarification)return 'By "hot", do you mean Spicy or Extra Spicy?';
   if(s.checkoutRequested&&s.cart.some(line=>getItem(line.itemId)!.spice&&!line.spiceLevel))return ORDER_SPICE_QUESTION;
   if(s.phase==="ask_name")return "What name should I put on the pickup request?";
-  if(s.phase==="confirm")return "Is the order I read back correct?";
+  if(s.phase==="confirm")return s.closingMode==="anything_else"?"Anything else?":"Is the order I read back correct?";
 }
 function priceTurn(s:DialogState,text:string,analysis:RecognitionAnalysis):TurnResult|undefined{
   if(!/\b(?:price|prices|cost|total|subtotal|bill|how much|how much is it)\b/i.test(text))return;
@@ -367,12 +375,22 @@ function runTurnCore(state: DialogState, rawText: string, providedAnalysis?: Rec
     text=`remove ${qty===undefined?"":`${qty} `}${line.name}`;providedAnalysis=undefined;
   }
   const done=DONE.test(text)||/^(?:no|nope|nah|nahi)[.!]?$/i.test(text)&&s.phase==="open"&&!!s.cart.length&&!s.recognition&&!s.pendingCorrection;
+  if((done||s.phase==="confirm"&&s.closingMode==="anything_else")&&isNoMoreAnswer(text))providedAnalysis={matches:[],issues:[]};
   if(done)providedAnalysis??=analyzeUtterance(text);
   const doneHasFood=!!providedAnalysis&&(providedAnalysis.matches.length>0||providedAnalysis.issues.length>0);
   if(done)s.checkoutRequested=true;
   if(done&&!doneHasFood&&!s.cart.length&&!s.pending&&!s.recognition){s.phase="closed";return reply("Goodbye! Thanks for calling Karahi House.",[],{endCall:true});}
   if(done&&!doneHasFood&&s.phase==="ask_name")return reply("What name for pickup?");
-  if(done&&!doneHasFood&&s.phase==="confirm")return reply("Is the order I read back correct?");
+  if(done&&!doneHasFood&&s.phase==="confirm"&&s.closingMode!=="anything_else")return reply("Is the order I read back correct?");
+  if(s.phase==="confirm"&&s.closingMode==="anything_else"&&!doneHasFood){
+    if(isNoMoreAnswer(text)){
+      const complete=!s.needsReview&&!s.pending&&!s.queued?.length&&!s.recognition&&!s.pendingCorrection&&!s.removalQuantity&&!s.removalConfirmation&&s.cart.length>0&&!!s.customerName&&s.cart.every(line=>{const item=getItem(line.itemId)!;return (!item.size||!!line.size)&&(!item.spice||!!line.spiceLevel);});
+      if(!complete)return reply(modifierQuestion(s)??"This request needs review before it can be submitted.");
+      if(s.readbackStamp!==reviewStamp(s)||!state.lastReply?.endsWith("Anything else?"))return reply(reviewOrder(s));
+      s.phase="closed";return reply(VOICE_ORDER_GOODBYE,[],{summary:buildSummary(s,"order","Caller declined further items after the current read-back; staff acceptance pending."),endCall:true});
+    }
+    if(wantsMore(text)){s.phase="open";s.checkoutRequested=false;s.readbackStamp=undefined;return reply("What else would you like?");}
+  }
   // Protein repairs apply only to a pending protein choice, not food orders.
   if(s.recognition&&/^(?:got|got please)[.!]?$/i.test(text)&&s.recognition.issues[0]?.candidates.some(candidate=>candidate.protein==="Goat")){
     text="goat";providedAnalysis={matches:[],issues:[]};
@@ -381,7 +399,9 @@ function runTurnCore(state: DialogState, rawText: string, providedAnalysis?: Rec
   // request is not coerced into a size or spice answer.
   const yesnoAnswer=constrainedAnswer(text,"yesno",["yes","no"]),yesno=yesnoAnswer.value;
   if(s.answerConfirmation){
-    if(yesno==="yes"){text=s.answerConfirmation.value;s.answerConfirmation=undefined;providedAnalysis=undefined;}
+    const revised=s.answerConfirmation.kind==="spice"?constrainedAnswer(text,"spice",s.spiceClarification?["Spicy","Extra Spicy"]:spiceOptions).value:s.answerConfirmation.kind==="size"?constrainedAnswer(text,"size",["half","full"]).value:undefined;
+    if(revised){text=revised;s.answerConfirmation=undefined;providedAnalysis={matches:[],issues:[]};}
+    else if(yesno==="yes"){text=s.answerConfirmation.value;s.answerConfirmation=undefined;providedAnalysis=undefined;}
     else if(yesno==="no"){s.answerConfirmation=undefined;return reply(pendingQuestion(s)??"What would you like instead?");}
     else return reply(`Did you mean ${s.answerConfirmation.value}? Please say yes or no.`);
   }else if((s.phase==="confirm"||s.recognition)&&yesnoAnswer.confirm){s.answerConfirmation={kind:"yesno",value:yesnoAnswer.confirm};return reply(`Did you mean ${yesnoAnswer.confirm}?`);}
@@ -485,12 +505,13 @@ function runTurnCore(state: DialogState, rawText: string, providedAnalysis?: Rec
     return reply(`${spice} for the order. ${modifierQuestion(s) ?? "Anything else?"}`);
   }
   if (s.phase === "ask_name") {
+    if(isNoMoreAnswer(text)||wantsMore(text))return reply("What name for pickup?");
     const name = text.replace(/^(?:my name is|this is|it'?s|i am|i'm)\s+/i, "").replace(/[^a-zA-Z\s'-]/g, "").trim();
     if (name.length < 2 || name.length > 40 || matches.length) return reply("What name should I put on the pickup request?");
-    s.customerName = name; s.orderType = "pickup"; s.phase = "confirm";
-    return reply(`Please check: ${cartSpoken(s.cart)}. Subtotal ${money(cartTotalCents(s.cart))}; tax is not configured. Pickup, payment at pickup. Is that correct?`);
+    s.customerName = name; s.orderType = "pickup";
+    return reply(reviewOrder(s));
   }
-  if (s.phase === "confirm" && YES.test(text) && !matches.length) {
+  if (s.phase === "confirm" && s.closingMode!=="anything_else" && YES.test(text) && !matches.length) {
     if (s.needsReview || s.pending || s.cart.some(line => getItem(line.itemId)!.spice && !line.spiceLevel)) return reply("This request needs review before it can be submitted.");
     s.phase = "closed";
     return reply("Your demo request is pending staff acceptance. It has not been accepted by the restaurant.", [],
@@ -666,6 +687,7 @@ function pendingExplicitCorrection(state:DialogState,text:string,intent:TurnInte
 function actionTurn(state:DialogState,text:string,intent:TurnIntent,provided?:RecognitionAnalysis):TurnResult{
   if(intent==="question"||intent==="complaint")return informationTurn(state,text,intent);
   if(intent==="removal")return removalTurn(state,text);
+  if(state.phase==="confirm"&&state.closingMode==="anything_else"&&(isNoMoreAnswer(text)||wantsMore(text)))return runTurnCore(state,text,provided);
   if(state.repetition){
     const qty=extractQuantityHint(text),s=structuredClone(state),r=s.repetition!;s.turns++;
     if(/^(?:cancel|no|never mind)[.!]?$/i.test(text)){s.repetition=undefined;return {reply:"Left that item out. Anything else?",state:s,matches:[]};}
@@ -717,6 +739,7 @@ export function runTurn(state:DialogState,text:string,analysis?:RecognitionAnaly
     result={reply:"No change made. What should I change?",state:{...structuredClone(state),turns:state.turns+1},matches:[],safetyRollback:true};
   }
   result.intent=decision.intent;result.state.lastIntent=decision.intent;
+  if(result.state.phase!=="confirm")result.state.readbackStamp=undefined;
   const oneSize=result.matches.filter(match=>!getItem(match.itemId)!.size&&new RegExp(`\\b(?:large|small|regular)\\s+(?:${speechText(match.heard).replace(/[^a-z ]/g,"")})\\b`,"i").test(speechText(text)));
   if(oneSize.length)result.reply=`${[...new Set(oneSize.map(match=>match.name))].join(" and ")} has one size. ${result.reply}`;
   const key=(line:CartLine)=>`${line.itemId}:${line.size??""}`;

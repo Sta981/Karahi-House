@@ -1,8 +1,8 @@
 # Five-minute Karahi House client demo
 
-This is a scripted development walkthrough, not a recognition-accuracy test. Expected answers below are the current deterministic text replies. STT may mishear a phrase; check the on-screen transcript. Never claim that staff accepted an order.
+This is a scripted development walkthrough, not a recognition-accuracy test. Expected answers below are deterministic replies with the voice engine's `anything_else` closing mode. STT may mishear a phrase; check the Roman transcript. Never claim that staff accepted an order. The legacy text API retains its separate “Is that correct?” / yes confirmation mode.
 
-Open `/voice`, select Nova-3 Indian English for repeatability, and wear headphones. This is not an accent-model winner claim. Show the build/configuration label and start with an empty cart. Use Ignore interruptions when presenting the order flow rather than barge-in.
+Open `/voice` and wear headphones. Nova-3 multilingual with English/Hindi hints is the default for mixed-language testing; select Nova-3 Indian English to repeat the older English-only configuration. This is not an accent-model winner claim. Show the build/configuration label and start with an empty cart. Use Ignore interruptions when presenting the order flow rather than barge-in.
 
 Optional handoff environment names (private values only):
 
@@ -30,11 +30,11 @@ Speak one row at a time and wait for the full reply. The five minutes include ti
 | 2:10–2:40 | “what do you have in desserts” | Falooda Ice Cream $7.99; Gulab Jamun $4.99; Kheer $4.99; Rasmalai $4.99. Want more? |
 | 2:40–3:00 | “that's all” | Spice for the order: Extra Spicy, Spicy, Medium Spice, Mild Spice, No Spice? |
 | 3:00–3:25 | “mild spice” | Changed 1 Chicken Lahori Karahi, Full to 1 Chicken Lahori Karahi, Full, Mild Spice. Changed 3 Garlic Naan Bread to 3 Garlic Naan Bread, Mild Spice. Mild Spice for the order. What name for pickup? |
-| 3:25–4:10 | “Demo Guest” | Please check: 1 Chicken Lahori Karahi, Full, Mild Spice; 3 Garlic Naan Bread, Mild Spice. Subtotal $47.97; tax is not configured. Pickup, payment at pickup. Is that correct? |
-| 4:10–4:30 | Check the read-back, then say “yes”. | Your demo request is pending staff acceptance. It has not been accepted by the restaurant. |
+| 3:25–4:10 | “Demo Guest” | Please check: 1 Chicken Lahori Karahi, Full, Mild Spice; 3 Garlic Naan Bread, Mild Spice. Subtotal $47.97; tax is not configured. Pickup, payment at pickup. Anything else? |
+| 4:10–4:30 | Check the read-back, then say “no”. | Thanks for calling Karahi House. Your demo request is pending staff acceptance. |
 | 4:30–5:00 | Show the DEMO ticket, email status and simulated SMS. Download the redacted JSON if desired. | The closing reply finishes, then the microphone releases. No extra caller phrase is needed to end. |
 
-The correction sets the naan total to three, rather than adding three more. The dessert question adds no food. Whole-order spice waits until completion. The final cart has no Mango Lassi or dessert.
+The correction sets the naan total to three, rather than adding three more. The dessert question adds no food. Whole-order spice waits until completion. The final cart has no Mango Lassi or dessert. After the read-back, “yes” means more ordering and never submits a ticket. “No”, “enough” and equivalent completion answers confirm no more items; corrections invalidate the old read-back. Missing choices/name and staff-review orders cannot use this shortcut.
 
 ## Expected ticket
 

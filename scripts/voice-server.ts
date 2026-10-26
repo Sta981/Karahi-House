@@ -23,6 +23,7 @@ import { execFileSync } from "node:child_process";
 import { runtimeInfo,type VoiceRuntimeInfo } from "../voice/runtime-info";
 import {demoTickets} from "../lib/demo-tickets";
 import { acquireDevelopmentCache } from "./lib/dev-cache.mjs";
+import {romanTranscript} from "../voice/roman-transcript";
 
 async function main() {
 const bootStarted=performance.now();
@@ -90,6 +91,7 @@ wss.on("connection", (ws,request) => {
   const recorder=new TurnRecorder(meta,publish);
   const emit = (event: Record<string, unknown> | Buffer) => {
     if (ws.readyState !== WebSocket.OPEN) return;
+    if(!Buffer.isBuffer(event)&&event.type==="partial")event={...event,displayText:romanTranscript(String(event.text??""))};
     // Keep raw chunk diagnostics in memory and include them in the final turn
     // row. Only the stall marker needs an immediate browser control message.
     if(!Buffer.isBuffer(event)&&event.type==="tts_telemetry"){

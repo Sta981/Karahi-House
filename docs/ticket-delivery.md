@@ -4,6 +4,8 @@ Before this update, `/voice` sent an in-memory summary to the tab through `call_
 
 The new handoff runs only for an order summary after explicit read-back confirmation. Catering/inquiry, incomplete and `needs_review` summaries cannot trigger an order email. Nothing goes to the restaurant.
 
+In the voice flow, the final read-back ends with **“Anything else?”**. Declining more items confirms that current, complete read-back; “yes” resumes ordering. A changed cart requires a new read-back. The legacy text API asks **“Is that correct?”** and requires yes. These are separate explicit engine modes; no/yes are never assigned opposite meanings within one question. The final voice goodbye finishes playback before the browser releases the mic; a synthesis failure does not emit a successful call-end marker.
+
 1. Ticket creation validates items, required choices and prices against the current local menu.
 2. The ticket is labelled `DEMO`, `pending_acceptance`, `staffAccepted: false`.
 3. The browser receives a redacted ticket and notification receipt. Voice speech runs alongside email; only final call closure waits for the bounded attempt. The final text request waits for that attempt.

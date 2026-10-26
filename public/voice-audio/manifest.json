@@ -1,6 +1,6 @@
 {
   "kind": "fixed-synthetic-menu-templates-only",
-  "identity": "6c77fdfa47fe0282a13fa24ff644bc297f27a8ff7f6809b9e5b795f129106594",
+  "identity": "3d8bffda24348c2a0728f96684f464be6b2b070cb54454c7330d73b1f72c448c",
   "voice": "aura-2-thalia-en:linear16:24000:v2",
   "sampleRate": 24000,
   "entries": [
@@ -171,6 +171,27 @@
       "file": "3809ab0ecaa4e22382e400a85547a55ce563ed299c6226533b0c23e0f5c23b0d.pcm",
       "bytes": 251520,
       "sha256": "91f7bc9d77752520ecf70fbe8bcac6e1825e5a0b46a39b1d28ce3186190a900a"
+    },
+    {
+      "id": "voice_order_goodbye",
+      "text": "Thanks for calling Karahi House. Your demo request is pending staff acceptance.",
+      "file": "a88cea6c8801b66dfe08ce608a6f8c89ac33234c65a0c9179128c75c654f7054.pcm",
+      "bytes": 226560,
+      "sha256": "b6faa2bd3850e0b98059b89b5714a1a120b0d183b63882c9085baf7d916b80fc"
+    },
+    {
+      "id": "tax_disclosure",
+      "text": "tax is not configured.",
+      "file": "f34ceb5a8ab50d3ec0411972514609c6a83c62aec9965be96ed2fadbf0c8ccd9.pcm",
+      "bytes": 84480,
+      "sha256": "c2beabe8dacd84e4278a50aa91c575a83d4dabffe7c35af428143ce92e190f47"
+    },
+    {
+      "id": "pickup_readback",
+      "text": "Pickup, payment at pickup.",
+      "file": "3c9f9e0a0995b1516721022b03114d88ab3061247ee67c90a3ffd14dc235ca84.pcm",
+      "bytes": 88320,
+      "sha256": "ee7a36dab3a342348227001f6e58706e48020240eb50608bb178e36b249760ba"
     },
     {
       "id": "common_0",

@@ -12,7 +12,7 @@ import DemoTicketView from "./DemoTicketView";
 type Timing = { totalMs: number; endpointAndUplinkMs: number; engineMs: number; ttsFirstByteMs: number; returnNetworkMs: number; browserRttMs: number; clockUncertaintyMs: number };
 function percentiles(values: number[]) { const sorted = [...values].sort((a,b) => a-b); return { n: sorted.length, p50: sorted[Math.max(0, Math.ceil(sorted.length*.5)-1)]?.toFixed(1) ?? "—", p95: sorted[Math.max(0, Math.ceil(sorted.length*.95)-1)]?.toFixed(1) ?? "—" }; }
 export default function StreamingVoice() {
-  const [model, setModel] = useState(""), [status, setStatus] = useState("Choose a model to compare"), [active, setActive] = useState(false);
+  const [model, setModel] = useState("nova-3"), [status, setStatus] = useState("Ready for an English/Hindi mixed-language test"), [active, setActive] = useState(false);
   const [accessCode,setAccessCode]=useState(""),[locationLabel,setLocationLabel]=useState("Not measured"),[logs,setLogs]=useState<VoiceLogRow[]>([]);
   const [requiresAccessCode,setRequiresAccessCode]=useState(false),[partial,setPartial]=useState(""),[micLevel,setMicLevel]=useState(0);
   const [intended,setIntended]=useState<Record<string,string>>({});
@@ -125,7 +125,7 @@ export default function StreamingVoice() {
         if(recoverableVoiceError(msg.code)){if(msg.preservePlayback){playback.fail(msg.generation);publishPlayback(msg.generation);}else stopAudio({source:"tts_error"});setStatus(message);return;}
         fail(message);return;
       }
-      if(msg.type==="partial"){setPartial(msg.text);return;}
+      if(msg.type==="partial"){setPartial(msg.displayText??msg.text);return;}
       if(msg.type==="audio_segment"){segmentKinds.set(msg.generation,msg.kind==="neutral"?"neutral":"informative");return;}
       if(msg.type==="tts_telemetry"&&msg.event?.type==="stall"){playback.stall(msg.generation);return;}
       if(msg.type==="cart_revision"){setCart(msg.cart);return;}
@@ -139,7 +139,7 @@ export default function StreamingVoice() {
       if(msg.type==="audio_end"){playback.serverEnd(msg.generation);publishPlayback(msg.generation);return;}
       if (msg.type === "transcript") {
         setPartial("");
-        setRows(prev => [...prev.slice(-39), {role:"You",text:msg.text}]);
+        setRows(prev => [...prev.slice(-39), {role:"You",text:msg.displayText??msg.text}]);
         // Provider word end refreshes every turn, including answers shorter
         // than the barge-in minimum. Never reuse a previous turn's VAD end.
         if (typeof msg.audioEndSeconds === "number" && Number.isFinite(lastEndAudio)) lastEnd = lastEndAudio + msg.audioEndSeconds*1000;
@@ -175,6 +175,7 @@ export default function StreamingVoice() {
     <p>Use headphones for the first test. Calls end after ten minutes. Text demo: <a href="/">home</a>.</p>
     <p>No final recognition model has been chosen. Compare the three options using the same real-mic script.</p>
     <p>For Hindi mixed with English, try Nova-3 multilingual. Full Urdu/Punjabi speech is not supported in this demo.</p>
+    <p>Caller transcripts appear in Roman letters. Transliteration can be approximate; it does not improve speech recognition.</p>
     <div aria-live="polite" style={{marginTop:20}}>{rows.map((row,i) => <p key={i}><strong>{row.role}:</strong> {row.text}</p>)}</div>
     <h2 style={{marginTop:20}}>Current cart</h2>
     {cart.length ? cart.map((item,i) => <p key={i}>{item.qty} × {item.name}{item.size ? ` · ${item.size}` : ""}{item.spiceLevel ? ` · ${item.spiceLevel}` : ""}</p>) : <p>No items yet.</p>}
@@ -194,6 +195,6 @@ export default function StreamingVoice() {
     <button className="btn btn-ghost" disabled={!logs.length} onClick={()=>{const url=URL.createObjectURL(new Blob([voiceCsv(logs)],{type:"text/csv;charset=utf-8"}));const link=document.createElement("a");link.href=url;link.download=`karahi-voice-${locationLabel.toLowerCase().replaceAll(" ","-")}-${model}.csv`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}}>Export turn log CSV</button>
     <button className="btn btn-ghost" disabled={!Object.values(intended).some(value=>value.trim())} onClick={()=>{const csv=mishearingsCsv(logs.map(row=>({turnId:row.turnId,atUtc:row.atUtc,model:row.model,location:row.location,heard:row.transcript,intended:intended[row.turnId]??"",runtime:row.runtime})));const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));const link=document.createElement("a");link.href=url;link.download="karahi-mishearings-private.csv";link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}}>Export mishearings CSV</button>
     <p>For a mishearing, type what you meant in your own words. This stays in the tab and your CSV; aliases require manual review.</p>
-    <table style={{width:"100%"}}><thead><tr><th>Transcript (redacted)</th><th>What you meant</th><th>Cart</th><th>Endpoint reason</th><th>First informative playback ms</th></tr></thead><tbody>{logs.map(row=><tr key={row.turnId}><td>{row.transcript}</td><td><input aria-label={`Intended words ${row.turnId}`} value={intended[row.turnId]??""} onChange={event=>setIntended(previous=>({...previous,[row.turnId]:event.target.value}))}/></td><td>{row.matchedCart.map(item=>`${item.qty} × ${item.itemId}`).join("; ")}</td><td>{row.endpointReason}</td><td>{row.audioTiming?.speechToInformativePlaybackMs?.toFixed(1)??row.status}</td></tr>)}</tbody></table>
+    <table style={{width:"100%"}}><thead><tr><th>Roman transcript (redacted)</th><th>What you meant</th><th>Cart</th><th>Endpoint reason</th><th>First informative playback ms</th></tr></thead><tbody>{logs.map(row=><tr key={row.turnId}><td>{row.romanTranscript??row.transcript}</td><td><input aria-label={`Intended words ${row.turnId}`} value={intended[row.turnId]??""} onChange={event=>setIntended(previous=>({...previous,[row.turnId]:event.target.value}))}/></td><td>{row.matchedCart.map(item=>`${item.qty} × ${item.itemId}`).join("; ")}</td><td>{row.endpointReason}</td><td>{row.audioTiming?.speechToInformativePlaybackMs?.toFixed(1)??row.status}</td></tr>)}</tbody></table>
   </div></section>;
 }

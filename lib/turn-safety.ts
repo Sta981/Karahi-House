@@ -1,6 +1,7 @@
 import type { CartLine, DialogState } from "./dialog";
 import { hasCorrectionMarkers, isRemovalCommand } from "./order-operations";
 import { MENU, MODIFIERS } from "./menu";
+import {isCompletionSignal} from "./closing";
 const CANONICAL_ORDER_NAMES=MENU.flatMap(item=>[item.name,item.website_name].filter((name):name is string=>!!name).map(name=>name.toLowerCase()));
 
 export type TurnIntent = "add_order" | "correction" | "removal" | "question" | "complaint" | "confirm" | "done" | "chitchat";
@@ -33,7 +34,7 @@ export function classifyTurn(state: DialogState, raw: string): IntentDecision {
   if (isRemovalCommand(text)) return choose(/\b(?:and|aur|plus)\s+(?:add|give|bring|get|i want)\b/i.test(text)?"correction":"removal", "explicit removal or mixed action request");
   if (desiredTotal(text) !== undefined || hasCorrectionMarkers(text) || /^(?:no[, ]+|not\b|instead\b)/i.test(text)) return choose("correction", "explicit correction");
   const spice = MODIFIERS.spice_level.options.some(option => text.toLowerCase().includes(option.toLowerCase())) || /\b(?:mild|medium|spicy|teekha|tikha|mirchi|hot)\b/i.test(text);
-  if (/\b(?:that'?s (?:all|it)|that (?:will|would) be all|nothing else|checkout|check out|bas|khatam|i'?m done|end (?:the |this )?call|goodbye|bye)\b/i.test(text)) {
+  if (isCompletionSignal(text)) {
     if(CANONICAL_ORDER_NAMES.some(name=>new RegExp(`\\b${name.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")}\\b`,"i").test(text)))return choose("add_order","order fragment plus completion");
     return choose(spice&&state.cart.length?"correction":"done", "caller finished");
   }

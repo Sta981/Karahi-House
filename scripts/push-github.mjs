@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { publishable, assertNoSecrets, readStagedBlob } from "./lib/github-publication.mjs";
+import { publishable, assertNoSecrets, readStagedBlob, stageSnapshotPaths } from "./lib/github-publication.mjs";
 
 const remote = "https://github.com/Sta981/Karahi-House.git";
 const root = realpathSync(".");
@@ -73,7 +73,7 @@ for (const [file, bytes] of snapshot) {
   writeFileSync(target, bytes);
 }
 // Explicit paths only: untracked files in the export folder can never be swept in.
-git(directory, ["add", "--", ...selected]);
+stageSnapshotPaths(directory, selected);
 git(directory, ["add", "--update"]);
 for (const file of git(directory, ["ls-files", "-z"]).split("\0").filter(Boolean)) {
   if (!snapshot.has(file) || !publishable(file)) throw Error(`Unexpected tracked export: ${file}`);
