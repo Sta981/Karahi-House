@@ -31,6 +31,7 @@ export function classifyTurn(state: DialogState, raw: string): IntentDecision {
       !/^(?:add|remove|delete|replace|change|make|set|i want|i need|can i (?:get|have)|could i (?:get|have))\b/i.test(text)) return choose("question", "information requested");
   if(/^(?:is|are|was|were|does|did|will|would|could|can|do (?:you|we|they|i))\b/i.test(text)&&!/^(?:can|could|would) (?:i (?:get|have)|you (?:add|give|bring|get|remove|change|make))\b/i.test(text))return choose("question","question form");
   if (state.removalQuantity || state.removalConfirmation || state.pendingCorrection?.segment.action === "remove") return choose("removal", "answer bound to pending removal");
+  if(state.pendingOrderList&&/^(?:add|add them|extra|extra items|add these|add these items|replace|replace it|replace the order|replace my order|replace the current order)[.!]?$/i.test(text))return choose("correction","explicit pending list action");
   if (isRemovalCommand(text)) return choose(/\b(?:and|aur|plus)\s+(?:add|give|bring|get|i want)\b/i.test(text)?"correction":"removal", "explicit removal or mixed action request");
   if (desiredTotal(text) !== undefined || hasCorrectionMarkers(text) || /^(?:no[, ]+|not\b|instead\b)/i.test(text)) return choose("correction", "explicit correction");
   const spice = MODIFIERS.spice_level.options.some(option => text.toLowerCase().includes(option.toLowerCase())) || /\b(?:mild|medium|spicy|teekha|tikha|mirchi|hot)\b/i.test(text);

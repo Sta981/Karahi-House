@@ -53,6 +53,8 @@ Removing a multi-quantity item without a count asks **one or both / one or all**
 
 ## Measured latency
 
+The latest [two-call mixed-language analysis](docs/multilingual-live-followups.md) identified list/clarification isolation, missing native words, correction ambiguity and provider trickle stalls. Clear quantity-delimited entries now resolve independently, with unresolved clauses/questions preserved. Existing-cart multi-item corrections ask add versus replace.
+
 Headline: speech end → first **informative playback**, excluding neutral acknowledgements. All rows below are **Lahore local**, not US-hosted. Synthetic speech does not establish human-accent performance.
 
 | Recorded build / input | STT | Informative n / attempted | p50 / p95 |
@@ -63,10 +65,14 @@ Headline: speech end → first **informative playback**, excluding neutral ackno
 | Unknown earlier build, owner real mic, `adaptive1600` | Nova-3 en-IN | 20/23 logged turns | 4.354 / 8.250 s |
 | `a3102c4`, owner real mic, `adaptive800` | Nova-3 en-IN / Aura-2 | 17/17 logged turns | 2.496 / 6.734 s |
 | `318a3d3`, owner real mic, `adaptive800` | Nova-3 en-IN / Aura-2 | 11/11 logged turns | 2.900 / 3.713 s |
+| `bef1721`, first owner multilingual export, `adaptive1100` | Nova-3 multi / Aura-2 | 9/11 logged rows | 3.384 / 56.681 s |
+| `bef1721`, second owner multilingual export, `adaptive1100` | Nova-3 multi / Aura-2 | 2/7 logged rows | 3.299 / 4.802 s |
 
 The earlier real-mic worst informative delay was **17.344 s**, with 15/23 finished replies. The seventeen-row `a3102c4` export has 15/17 finished, zero barge-in cuts and a 6.734 s worst informative delay; one row has a conflicting `no_audio` status despite an informative timestamp. The eleven-row `318a3d3` export has 9/11 finished and zero barge-in cuts; completion phrases failed in that build. These are different utterances/sample sizes, not a controlled before/after accuracy test. The synthetic run finished 30/30 per configuration, with slow dynamic replies remaining. Failed/regressed trials remain in [known limitations](docs/known-limitations.md). The new Roman-display/closing revision awaits its own real-mic retest.
 
-The page and each turn/mishearing CSV row identify commit, dirty status, STT, endpoint settings and TTS. Defaults: complete Flux 750 ms, Nova multi 1100 ms, en-IN 800 ms; uncertain 900 ms, unfinished 1600 ms, finite answers 600 ms. Provider endpointing adds time. Barge-in uses 480 ms sustained speech plus energy/echo checks; Ignore interruptions is available. All 314 fixed synthetic clips are pre-rendered, including the new goodbye/read-back fragments; dynamic misses still depend on the provider. Engine speculation is off.
+The multilingual exports finished 9/11 and 1/7 replies. The second has five missing informative timings, so its two measured arrivals are not a successful latency result. New mixed-list/recovery real-mic performance is unmeasured.
+
+The page and each turn/mishearing CSV row identify commit, dirty status, STT, endpoint settings and TTS. Defaults: complete Flux 750 ms, Nova multi 1100 ms, en-IN 800 ms; uncertain 900 ms, unfinished 1600 ms, finite answers 600 ms. Provider endpointing adds time. Barge-in uses 480 ms sustained speech plus energy/echo checks; Ignore interruptions is available. All 324 fixed synthetic clips are pre-rendered. Dynamic misses still depend on the provider, with a six-second whole-reply synthesis deadline and cached failure notice. Engine speculation is off.
 
 ## Checks excluding held-out evaluation
 
@@ -84,7 +90,7 @@ npm run check:privacy
 npm run build
 ```
 
-Current validation passes 195 selected checks: 53 engine, 54 live/pattern, 67 voice, 5 publication, 8 notification, 1 scripted walkthrough and 7 development-cache checks. Notification checks use mock transport. The full local development checkout also supports `npm run test:engine`; some baseline-integrity checks need local evaluation artifacts intentionally excluded from the public snapshot. Development tests are not held-out or accent accuracy. Held-out files/grading rules are excluded from this checklist. Burned cases remain regression-only. The Groq segmenter comparison was skipped; local parsing remains default.
+Current validation passes 211 selected checks: 53 engine, 67 live/pattern, 70 voice, 5 publication, 8 notification, 1 scripted walkthrough and 7 development-cache checks. Notification checks use mock transport. The full local development checkout also supports `npm run test:engine`; some baseline-integrity checks need local evaluation artifacts intentionally excluded from the public snapshot. Development tests are not held-out or accent accuracy. Held-out files/grading rules are excluded from this checklist. Burned cases remain regression-only. The Groq segmenter comparison was skipped; local parsing remains default.
 
 Use the [thirty-turn real-mic script](docs/real-mic-script.md) and [blank sheet](docs/real-mic-results-template.csv) for all three STT configs. Export before resetting. Enter intended words for mishearings; aliases need manual review. `npm run voice:analyze -- 'path-to-export.csv' --require-commit FULL_COMMIT_HASH` excludes other/dirty builds. Explicit provider benchmarks consume credits; offline checks above do not.
 

@@ -10,7 +10,7 @@ import { speechTokens } from "./speech";
 import { menuBrowsing, CATEGORY_LIST, MENU_FALLBACK, type BrowseState } from "./menu-browsing";
 import { classifyTurn, cartChanges, permitsCart, desiredTotal, equivalentLine, spokenLine, type TurnIntent } from "./turn-safety";
 import { normalizeCodeSwitch } from "./code-switch";
-import {isCompletionSignal,isNoMoreAnswer,wantsMore} from "./closing";
+import {isCompletionSignal,isNoMoreAnswer,wantsMore,completionWithTiming} from "./closing";
 
 export interface CartLine {
   itemId: string; name: string; qty: number; size?: "Half" | "Full";
@@ -37,6 +37,7 @@ export interface DialogState {
   repetition?:{itemId:string;choices:number[];portion?:"half"|"full";spiceLevel?:string;notes?:string[]};
   lastIntent?:TurnIntent;
   closingMode?:"correct"|"anything_else";readbackStamp?:string;
+  pendingOrderList?:{text:string;cartStamp:string};
 }
 export interface CallSummary {
   kind: "order" | "inquiry" | "catering"; status: "pending_acceptance" | "needs_review";
@@ -322,6 +323,8 @@ function recognitionTurn(s: DialogState, text: string, analysis: ReturnType<type
   pending.attempts++;
   // A new clear side can be accepted while an unrelated identity is pending.
   const independent=analysis.matches.filter(match=>!issue.candidates.some(candidate=>candidate.itemId===match.itemId));
+  const newIssues=analysis.issues.filter(next=>!pending.issues.some(old=>next.candidates.length&&next.candidates.some(candidate=>old.candidates.some(prior=>prior.itemId===candidate.itemId))||next.heard===old.heard));
+  if(newIssues.length)pending.issues.push(...newIssues);
   if(independent.length){processMatches(s,independent);pending.attempts=0;return {reply:issue.question,state:s,matches:independent};}
   if (pending.attempts >= 3) {
     s.needsReview = true;
@@ -384,7 +387,7 @@ function runTurnCore(state: DialogState, rawText: string, providedAnalysis?: Rec
   if(done&&!doneHasFood&&s.phase==="confirm"&&s.closingMode!=="anything_else")return reply("Is the order I read back correct?");
   if(s.phase==="confirm"&&s.closingMode==="anything_else"&&!doneHasFood){
     if(isNoMoreAnswer(text)){
-      const complete=!s.needsReview&&!s.pending&&!s.queued?.length&&!s.recognition&&!s.pendingCorrection&&!s.removalQuantity&&!s.removalConfirmation&&s.cart.length>0&&!!s.customerName&&s.cart.every(line=>{const item=getItem(line.itemId)!;return (!item.size||!!line.size)&&(!item.spice||!!line.spiceLevel);});
+      const complete=!s.needsReview&&!s.pending&&!s.queued?.length&&!s.recognition&&!s.pendingCorrection&&!s.pendingOrderList&&!s.removalQuantity&&!s.removalConfirmation&&s.cart.length>0&&!!s.customerName&&s.cart.every(line=>{const item=getItem(line.itemId)!;return (!item.size||!!line.size)&&(!item.spice||!!line.spiceLevel);});
       if(!complete)return reply(modifierQuestion(s)??"This request needs review before it can be submitted.");
       if(s.readbackStamp!==reviewStamp(s)||!state.lastReply?.endsWith("Anything else?"))return reply(reviewOrder(s));
       s.phase="closed";return reply(VOICE_ORDER_GOODBYE,[],{summary:buildSummary(s,"order","Caller declined further items after the current read-back; staff acceptance pending."),endCall:true});
@@ -687,6 +690,21 @@ function pendingExplicitCorrection(state:DialogState,text:string,intent:TurnInte
 function actionTurn(state:DialogState,text:string,intent:TurnIntent,provided?:RecognitionAnalysis):TurnResult{
   if(intent==="question"||intent==="complaint")return informationTurn(state,text,intent);
   if(intent==="removal")return removalTurn(state,text);
+  if(state.pendingOrderList){
+    if(/^(?:cancel|never mind|no)[.!]?$/i.test(text))return {reply:"Left those changes out. Anything else?",state:{...structuredClone(state),pendingOrderList:undefined},matches:[]};
+    const adding=/^(?:add|add them|extra|extra items|add these|add these items)[.!]?$/i.test(text),replacing=/^(?:replace|replace it|replace the order|replace my order|replace the current order)[.!]?$/i.test(text);
+    if(!adding&&!replacing)return {reply:"Add those items, or replace the current order?",state:structuredClone(state),matches:[]};
+    if(state.pendingOrderList.cartStamp!==JSON.stringify(state.cart))return {reply:"The cart changed. Please repeat the items you want to add or replace.",state:{...structuredClone(state),pendingOrderList:undefined},matches:[]};
+    const draft={...structuredClone(state),pendingOrderList:undefined};
+    if(replacing){draft.cart=[];draft.pending=undefined;draft.queued=undefined;draft.recognition=undefined;draft.pendingCorrection=undefined;draft.checkoutRequested=false;draft.phase="open";}
+    return runTurnCore(draft,`add ${state.pendingOrderList.text}`);
+  }
+  const listRestart=text.match(/^(?:actually|i mean)[,\s]+(?:i\s+)?(?:want|need|would like)\s+(.+)$/i)?.[1];
+  if(intent==="correction"&&listRestart&&state.cart.length){const a=analyzeUtterance(listRestart);if(a.matches.length+a.issues.length>1)return {reply:"Add those items, or replace the current order?",state:{...structuredClone(state),pendingOrderList:{text:listRestart,cartStamp:JSON.stringify(state.cart)}},matches:[]};}
+  // With no committed/drafted line to replace, a leading discourse repair
+  // supersedes an unresolved request. It must not manufacture a cart target.
+  const restart=!state.cart.length&&!state.pending&&!state.queued?.length&&!state.pendingCorrection&&!state.removalQuantity&&!state.removalConfirmation&&intent==="correction"?text.match(/^(?:the\s+)?(?:actually|i mean)[,\s]+(.+)$/i)?.[1]:undefined;
+  if(restart){const analysis=analyzeUtterance(restart);if(analysis.matches.length||analysis.issues.length)return runTurnCore({...structuredClone(state),recognition:undefined},restart,analysis);}
   if(state.phase==="confirm"&&state.closingMode==="anything_else"&&(isNoMoreAnswer(text)||wantsMore(text)))return runTurnCore(state,text,provided);
   if(state.repetition){
     const qty=extractQuantityHint(text),s=structuredClone(state),r=s.repetition!;s.turns++;
@@ -728,10 +746,18 @@ function actionTurn(state:DialogState,text:string,intent:TurnIntent,provided?:Re
 export function runTurn(state:DialogState,text:string,analysis?:RecognitionAnalysis):TurnResult{
   const normalized=normalizeCodeSwitch(text,state.phase==="ask_name");
   if(normalized.unsupportedScript&&!requiresStaffReview(normalized.text)){
+    if(classifyTurn(state,normalized.text).intent==="add_order"){
+      // Keep an unknown word as an explicit unresolved clause. Never silently
+      // strip it and extract a nearby one-word side from that same clause.
+      text=normalized.text.replace(/[\p{L}\p{M}]+/gu,word=>/[^\x00-\x7F]/.test(word)?"unrecognizedword":word);analysis=undefined;
+    }else{
     const reply="I missed part of that. Please repeat the item or choice in English.";
     return {reply,state:{...structuredClone(state),turns:state.turns+1,lastReply:reply},matches:[],operations:[],disclosure:[],intent:classifyTurn(state,normalized.text).intent};
+    }
   }
-  if(normalized.changed){text=normalized.text;analysis=undefined;}
+  if(normalized.changed&&!normalized.unsupportedScript){text=normalized.text;analysis=undefined;}
+  const timingCompletion=completionWithTiming(text);
+  if(timingCompletion){text=timingCompletion;analysis=undefined;}
   const decision=classifyTurn(state,text);
   let result=state.phase==="closed"?runTurnCore(state,text,analysis):requiresStaffReview(text)?runTurnCore(state,text,analysis):actionTurn(state,text,decision.intent,analysis);
   result.state=JSON.parse(JSON.stringify(result.state));
@@ -739,6 +765,7 @@ export function runTurn(state:DialogState,text:string,analysis?:RecognitionAnaly
     result={reply:"No change made. What should I change?",state:{...structuredClone(state),turns:state.turns+1},matches:[],safetyRollback:true};
   }
   result.intent=decision.intent;result.state.lastIntent=decision.intent;
+  if(timingCompletion)result.reply=`Pickup is about 30 minutes; staff must confirm. ${result.reply}`;
   if(result.state.phase!=="confirm")result.state.readbackStamp=undefined;
   const oneSize=result.matches.filter(match=>!getItem(match.itemId)!.size&&new RegExp(`\\b(?:large|small|regular)\\s+(?:${speechText(match.heard).replace(/[^a-z ]/g,"")})\\b`,"i").test(speechText(text)));
   if(oneSize.length)result.reply=`${[...new Set(oneSize.map(match=>match.name))].join(" and ")} has one size. ${result.reply}`;
@@ -750,7 +777,7 @@ export function runTurn(state:DialogState,text:string,analysis?:RecognitionAnaly
     const removed=[...new Set(state.cart.map(key))].flatMap(id=>{const qty=total(state.cart,id)-total(result.state.cart,id),line=state.cart.find(line=>key(line)===id)!;return qty>0?[`${qty} ${line.name}${line.size?`, ${line.size}`:""}`]:[];});
     if(removed.length)result.reply=`Removed ${removed.join(" and ")}. ${pendingQuestion(result.state)??"Anything else?"}`;
   }
-  const progress=JSON.stringify([state.cart,state.pending,state.orderSpice,state.phase,state.recognition?.issues.map(issue=>issue.heard),state.pendingCorrection?.segment,state.removalQuantity,state.removalConfirmation])!==JSON.stringify([result.state.cart,result.state.pending,result.state.orderSpice,result.state.phase,result.state.recognition?.issues.map(issue=>issue.heard),result.state.pendingCorrection?.segment,result.state.removalQuantity,result.state.removalConfirmation]);
+  const progress=JSON.stringify([state.cart,state.pending,state.orderSpice,state.phase,state.recognition?.issues.map(issue=>issue.heard),state.pendingCorrection?.segment,state.pendingOrderList,state.removalQuantity,state.removalConfirmation])!==JSON.stringify([result.state.cart,result.state.pending,result.state.orderSpice,result.state.phase,result.state.recognition?.issues.map(issue=>issue.heard),result.state.pendingCorrection?.segment,result.state.pendingOrderList,result.state.removalQuantity,result.state.removalConfirmation]);
   const browsing=!!menuBrowsing(text,state.browsing??(state.lastReply?.includes("Menu categories:")?{key:"menu",offset:0}:undefined));
   const answeredInformation=["question","complaint"].includes(decision.intent)&&!result.needsLLM;
   const miss=!answeredInformation&&!browsing&&!progress&&(!!pendingQuestion(result.state)||!!result.needsLLM)&&!/^\b(?:price|cost|total|subtotal|bill|how much)\b/i.test(text);
@@ -762,6 +789,7 @@ export function runTurn(state:DialogState,text:string,analysis?:RecognitionAnaly
     else if(browsing)result.reply=`${CATEGORY_LIST} Which category would you like next?`;
     else if(result.state.pending)result.reply=`For ${getItem(result.state.pending.itemId)!.name}, please choose Half or Full.`;
     else if(result.state.phase==="ask_spice")result.reply=`Please choose ${spiceOptions.join(", ")}.`;
+    else if(result.state.recognition?.issues[0]){const issue=result.state.recognition.issues[0];result.reply=issue.candidates.length===1?`Should I add ${issue.candidates[0].qty} ${issue.candidates[0].name}?`:`Please choose: ${issue.question}`;}
     else result.reply=`${CATEGORY_LIST} Which category would you like?`;
     if(result.reply===state.lastReply)result.reply="Could you say that again? You can order or ask about the menu.";
   }

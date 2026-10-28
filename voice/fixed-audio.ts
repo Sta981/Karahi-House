@@ -10,7 +10,7 @@ export class FixedAudioTts implements Tts {
  readonly name:string;readonly cacheIdentity=AUDIO_IDENTITY;
  private cache=new Map<string,Buffer[]>();private warming?:Promise<void>;private startupMs=0;private staticLoadMs=0;private source="disabled";
  private derivedPrices=new Map<string,Buffer[]>();
- constructor(private base:Tts,private enabled=true,private acknowledgement=false,private directory=path.resolve("public/voice-audio"),private buffering={targetMs:300,shortCharacters:80,stallMs:1100}){this.name=base.name;}
+ constructor(private base:Tts,private enabled=true,private acknowledgement=false,private directory=path.resolve("public/voice-audio"),private buffering:{targetMs:number;shortCharacters:number;stallMs:number;maxWaitMs?:number}={targetMs:300,shortCharacters:80,stallMs:1100}){this.name=base.name;}
  warm(){
   if(this.warming)return this.warming;
   this.warming=(async()=>{
@@ -71,6 +71,9 @@ export class FixedAudioTts implements Tts {
  stats(){return {enabled:this.enabled,ready:!this.enabled||this.cache.size===FIXED_PHRASES.length,entries:this.cache.size,bytes:[...this.cache.values()].flat().reduce((sum,chunk)=>sum+chunk.length,0),startupMs:this.startupMs,staticLoadMs:this.staticLoadMs,source:this.source,startupCharacters:0,acknowledgement:false,acknowledgementPolicy:"content_first",buffering:this.buffering};}
  async *speak(text:string,signal:AbortSignal,observe?:TtsObserver){
   signal.throwIfAborted();const parts=this.parts(text),abort=new AbortController(),linked=AbortSignal.any([signal,abort.signal]);
+  // An inactivity timer resets on every tiny provider chunk. Bound the whole
+  // reply too, so a trickling connection cannot repeat stalls for a minute.
+  const deadline=setTimeout(()=>abort.abort(new DOMException("Speech response deadline exceeded","TimeoutError")),this.buffering.maxWaitMs??6000);
   const informative=parts.filter(part=>!part.ack),short=text.length<=this.buffering.shortCharacters,hasRemote=informative.some(part=>!part.cached);
   let queue:Buffer[]=[],bytes=0,done=false,failure:unknown,dynamicReady=!hasRemote,wake:()=>void=()=>{},availableUntil=performance.now();
   const push=(chunk:Buffer)=>{queue.push(chunk);bytes+=chunk.length;wake();};
@@ -96,7 +99,7 @@ export class FixedAudioTts implements Tts {
     if(done){if(failure){
       signal.throwIfAborted();const fallback=this.cache.get("I'm having trouble speaking. Please check the text reply.");
       if(!fallback?.length)throw failure;
-      const reason=failure instanceof Error&&/timeout/i.test(failure.message)?"timeout":failure instanceof Error&&/connection|socket/i.test(failure.message)?"connection":"http";
+      const reason=failure instanceof Error&&/timeout|deadline/i.test(failure.name+failure.message)?"timeout":failure instanceof Error&&/connection|socket/i.test(failure.message)?"connection":"http";
       observe?.({type:"terminal_failure",reason});observe?.({type:"segment",kind:"neutral"});
       for(const chunk of fallback)yield chunk;return;
     }break;}
@@ -109,7 +112,7 @@ export class FixedAudioTts implements Tts {
       else availableUntil=performance.now();
     }
    }
-  }finally{abort.abort();await producer;}
+  }finally{clearTimeout(deadline);abort.abort();await producer;}
  }
  close(){this.base.close();this.cache.clear();this.derivedPrices.clear();}
 }

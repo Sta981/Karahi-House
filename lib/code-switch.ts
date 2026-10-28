@@ -2,6 +2,10 @@
 // Unknown script is preserved and rejected before it can disappear in the
 // ASCII matcher. Customer names/callbacks bypass this normalization.
 const WORDS:Record<string,string>={
+  "आपके":"aapke","आपकी":"aapki","पास":"paas","खाने":"khane","खाना":"khana","इसके":"iske","अलावा":"alawa","भी":"bhi","अच्छा":"accha","ना":"na","तिख़ा":"teekha",
+  "मखनी":"makhni","चना":"chana","आलू":"aloo","गोभी":"gobi","सब्जी":"vegetable","वेजिटेबल":"vegetable","चटनी":"chutney","रायते":"raita","खीर":"kheer","रसमलाई":"rasmalai","गुलाब":"gulab","जामुन":"jamun","मटर":"matar","साग":"saag","पालक":"palak","दही":"yogurt","मीठी":"sweet","नमकीन":"salty","सोडा":"soda","कैन":"can","चीज":"cheese","फ्राइज":"fries","बर्गर":"burger","टिका":"tika","तिका":"tika",
+  "آپکے":"aapke","پاس":"paas","کھانے":"khane","علاوہ":"alawa","بھی":"bhi","مکھنی":"makhni","چنا":"chana","آلو":"aloo","گوبھی":"gobi","چٹنی":"chutney","کھیر":"kheer","رسمالائی":"rasmalai",
+  "ਮੱਖਣੀ":"makhni","ਚਨਾ":"chana","ਆਲੂ":"aloo","ਗੋਭੀ":"gobi","ਚਟਨੀ":"chutney","ਖੀਰ":"kheer","ਵੀ":"bhi","ਕੋਲ":"paas","ਖਾਣੇ":"khane",
   "यही":"yahi","येही":"yehi","ऑर्डर":"order","आर्डर":"order","इतना":"itna","खत्म":"khatam","ख़त्म":"khatam","सही":"sahi",
   "یہی":"yahi","آرڈر":"order","ہے":"hai","ختم":"khatam","ہاں":"haan",
   "ਇਹੀ":"ehi","ਆਰਡਰ":"order","ਹੈ":"hai","ਖਤਮ":"khatam","ਹੋ":"ho","ਗਿਆ":"gaya","ਠੀਕ":"theek","ਹਾਂ":"haan",
@@ -37,6 +41,9 @@ export function normalizeCodeSwitch(raw:string,preserveIdentity=false):Normalize
     .replace(/\b(?:zyada|ziada|wadh|tez)\s+mirch(?:i)?\b/gi,"spicy")
     .replace(/\b(?:aadha|adha|addha|adhi)\b/gi,"half").replace(/\b(?:poora|pura|poori)\b/gi,"full");
   text=text.replace(/\b(?:aur\s+(?:kuch|kuchh)\s+(?:nahi|nahin)|hor\s+(?:kuch|kujh)\s+(?:nahi|nai)|bas\s+(?:itna(?:\s+hi)?|ho\s+gaya|ji))\b/gi,"that's all");
+  text=text.replace(/\b(?:mujhe|muje|hume)\s+na\s+(?=(?:iske|is ke)\s+alawa\b)/gi,"mujhe ").replace(/\b(?:iske|is ke)\s+alawa\b/gi,"also");
+  // A finite browsing frame, never an item alias or an ordering permission.
+  if(/^(?:aur\s+)?(?:aapke|apke|aap ke|tumhare)\s+paas\s+kya\s+hai(?:\s+(?:khane\s+(?:mein|me)|menu\s+mein))?[.!?]*$/i.test(text.trim()))text="what do you have";
   if(/^(?:haan(?:\s+ji)?|han(?:\s+ji)?|hanji|ji\s+haan|theek\s+hai)[.!]?$/i.test(text.trim()))text="yes";
   if(/^(?:nahi|nhi|nahin|nai)(?:\s+ji)?[.!]?$/i.test(text.trim()))text="no";
   const command="(?:hata(?:o)?|nikal(?:o)?|kadd|kad|kadh)(?:\\s+(?:do|dein|dena|deo|deyo|diyo|dyo))?";

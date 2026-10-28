@@ -10,3 +10,12 @@ export function isNoMoreAnswer(text:string):boolean{
  return /^(?:no|nope|nah|nahi|nhi|nahin|nai|bas|khatam|nothing else|no more|that'?s all|that'?s it|that will be all|that would be all|i'?m done|goodbye|bye|all good|correct|that'?s right|it is correct|the order is correct)(?: (?:please|thanks|thank you|ji))*$/.test(value)||COMPLETION.test(value);
 }
 export const wantsMore=(text:string)=>/^(?:yes|yeah|yep|haan|han|ji)(?:\s+(?:please|ji))?[.!]?$/i.test(text.trim());
+
+// Two finite intents in one turn: checkout plus a preparation-time question.
+// Do not extract completion from a sentence that also orders or changes food.
+export function completionWithTiming(text:string):string|undefined{
+ const value=plain(text).replace(/^(?:ok|okay|well)\s+/,""),parts=value.split(/\s+and\s+/);
+ if(parts[0])parts[0]=parts[0].replace(/\s+now$/," ").trim();
+ if(parts.length!==2||!isNoMoreAnswer(parts[0]))return;
+ return /^(?:how long(?: (?:will|does) (?:it|my order) take)?|how (?:much|many) time (?:(?:can|will|do) i|i (?:can|will)) (?:get|wait for) my order|when (?:will|can) (?:my order be ready|i (?:get|collect) my order))$/.test(parts[1])?parts[0]:undefined;
+}

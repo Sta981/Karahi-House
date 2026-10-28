@@ -53,3 +53,27 @@ test("chunk telemetry is published once at completion and late ack timing cannot
  recorder.event({type:"audio_end",generation:1});assert.equal(rows.at(-1).ttsChunks.length,100);assert.equal(rows.length,initial+1);
  recorder.event({type:"error",generation:1});recorder.latency(1,{totalMs:5,endpointAndUplinkMs:1,engineMs:1,ttsFirstByteMs:2,returnNetworkMs:1,browserRttMs:1,clockUncertaintyMs:.5});assert.equal(rows.at(-1).status,"failed");
 });
+
+test("a trickling provider hits the whole-reply deadline instead of resetting it forever",async()=>{
+ let aborted=false;const events:TtsTelemetry[]=[],base:Tts={name:"aura-2",warm:async()=>{},close(){},async *speak(_text,signal){
+  try{for(let index=0;index<50;index++){await wait(5);signal.throwIfAborted();yield Buffer.from([1,0]);}}finally{aborted=signal.aborted;}
+ }},tts=new FixedAudioTts(base,true,false,undefined,{targetMs:300,shortCharacters:80,stallMs:20,maxWaitMs:45});await tts.warm();
+ for await(const _chunk of tts.speak("A dynamic response that will not finish.",new AbortController().signal,event=>events.push(event))){}
+ assert.equal(aborted,true);assert.ok(events.some(event=>event.type==="terminal_failure"&&event.reason==="timeout"));assert.equal(events.some(event=>event.type==="segment"&&event.kind==="informative"),false);tts.close();
+});
+
+test("common clarification and language-recovery replies are entirely cached",async()=>{
+ const base:Tts={name:"aura-2",warm:async()=>{},close(){},async *speak(){throw Error("No provider call expected");}},tts=new FixedAudioTts(base);await tts.warm();
+ for(const text of ["Kids Chicken Burger, $8.99. Add it?","No problem. Half or Full for Goat White Karahi?","I missed part of that. Please repeat the item or choice in English."]){
+  assert.equal(tts.plan(text).dynamicCharacters,0,text);let bytes=0;for await(const chunk of tts.speak(text,new AbortController().signal))bytes+=chunk.length;assert.ok(bytes>0);
+ }tts.close();
+});
+
+test("a cached TTS failure notice cannot end a call as if goodbye played",async()=>{
+ const {VoiceSession}=await import("../voice/session"),events:any[]=[],base:Tts={name:"aura-2",warm:async()=>{},close(){},async *speak(){throw Error("fixture timeout");}},tts=new FixedAudioTts(base);await tts.warm();
+ // An empty-order goodbye is cached, so exercise a failed dynamic goodbye by
+ // wrapping the neutral terminal-failure stream under the normal session.
+ const failed:Tts={name:"aura-2",warm:async()=>{},close(){},speak:(_text,signal,observe)=>tts.speak("A dynamic failing goodbye.",signal,observe)};
+ const ending=new VoiceSession(failed,event=>{if(!Buffer.isBuffer(event))events.push(event);});
+ await ending.turn("goodbye",0);assert.ok(events.some(event=>event.type==="error"&&event.code==="tts_failed"));assert.equal(events.some(event=>event.type==="call_end"),false);ending.close();tts.close();
+});

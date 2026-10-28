@@ -1,6 +1,6 @@
 {
   "kind": "fixed-synthetic-menu-templates-only",
-  "identity": "3d8bffda24348c2a0728f96684f464be6b2b070cb54454c7330d73b1f72c448c",
+  "identity": "ce2e6ac048ffcb20e8b1918ea1946c1961fee9c7c665d81dca3dd8c4cd3ef573",
   "voice": "aura-2-thalia-en:linear16:24000:v2",
   "sampleRate": 24000,
   "entries": [
@@ -192,6 +192,76 @@
       "file": "3c9f9e0a0995b1516721022b03114d88ab3061247ee67c90a3ffd14dc235ca84.pcm",
       "bytes": 88320,
       "sha256": "ee7a36dab3a342348227001f6e58706e48020240eb50608bb178e36b249760ba"
+    },
+    {
+      "id": "recovery_0",
+      "text": "Add it?",
+      "file": "0f9be63264e7d13b581f0a600b44231cd61936e7b24fc814c1855689ef8ea597.pcm",
+      "bytes": 32640,
+      "sha256": "22ca6e4950f4f521db171910aa01f74a6bc836fd62ddef1db3028225196a1a62"
+    },
+    {
+      "id": "recovery_1",
+      "text": "No problem. ",
+      "file": "d6b09519e0264f7e6d97802d5c211f1ae9c20793dd64094949b9532737855a3f.pcm",
+      "bytes": 36480,
+      "sha256": "d0846e58e0207bbf04c52c77d44f8d804a895f36ee234eb31aad56001f87d9de"
+    },
+    {
+      "id": "recovery_2",
+      "text": "I missed part of that. Please repeat the item or choice in English.",
+      "file": "7c0154de538e0fa22d16f55345e3a32cfbc85894974db6c4a1c3d39b46ff1d50.pcm",
+      "bytes": 207360,
+      "sha256": "fd67128b8e837ca906b6e6546e70b497dbfd181fdf0aec04738170c9ebf23e6f"
+    },
+    {
+      "id": "recovery_3",
+      "text": "Which existing item should I change?",
+      "file": "792b05302afe2853f3222327f8ea8610cbae25362a3731460634d684e7dc6e3e.pcm",
+      "bytes": 99840,
+      "sha256": "982c1425ff627a0918e4eed45593fea5419b4cde312a324ae65115634d9e5eae"
+    },
+    {
+      "id": "recovery_4",
+      "text": "Pickup is about 30 minutes; staff must confirm.",
+      "file": "da068aee63beb717fa1a7fcf14f115128f691a4a31a89c5249ab66a908429b70.pcm",
+      "bytes": 144000,
+      "sha256": "53d27239fc21ae13328807b841ed968e4ae744ab19b3fd63c1d5c262925ff2e1"
+    },
+    {
+      "id": "recovery_5",
+      "text": "or",
+      "file": "6068638700e4b77799fd47b842e473169346f499d7357e41faa73b88c8434f16.pcm",
+      "bytes": 23040,
+      "sha256": "529303996d1b2fb530e80ee7a2772e30d01cc437b4ae92b20da6a7d665664c5e"
+    },
+    {
+      "id": "recovery_6",
+      "text": "Should I add ",
+      "file": "47d85a2847d8e7f6388ea78dc3f83cce9ef4341cbcfce10f0c855040d66b41a1.pcm",
+      "bytes": 51840,
+      "sha256": "c5054d3b0b0e53370e49ff47f450c568ecd52d4c44c2a130e4e9890c9a293a4b"
+    },
+    {
+      "id": "recovery_7",
+      "text": "Add those items, or replace the current order?",
+      "file": "378b4fdbb7bb263d82e141ebd5347df6b3e91af32b0753d74c8fb4d10103369e.pcm",
+      "bytes": 136320,
+      "sha256": "4c6b77673e7c008833185986f3fa5e2f8d3c9fae784a5e62c61758dfdea8bb71"
+    },
+    {
+      "id": "recovery_8",
+      "text": "I missed part of that item. Please repeat it in English.",
+      "file": "2b243108da728785d6fbff6e9abfdbe6237cef1ed5d109467bc78d61edfab3c3.pcm",
+      "bytes": 174720,
+      "sha256": "914d7cc8cc4c56347436b1ee63b806fe8eb6aadbfd0dae1059da5b7dafa4b98f"
+    },
+    {
+      "id": "recovery_9",
+      "text": "Left those changes out. Anything else?",
+      "file": "3e520a8ef49ec980bfe853f42b06885378f11222e9b63ab5e11518191bf974e3.pcm",
+      "bytes": 142080,
+      "sha256": "930361fd8e3342bc1bdb69e5c4d5dda962af873122772cb62a971eee0a1d55e5"
     },
     {
       "id": "common_0",

@@ -51,7 +51,7 @@ const STOPWORDS = new Set([
   "i", "want", "need", "take", "would", "like", "get", "have", "can", "you", "give", "also",
   "add", "order", "one", "just", "to", "my", "us", "we", "that", "thats",
   "this", "these", "those", "it", "its", "all", "everything", "something",
-  "anything", "else", "is", "was", "be",
+  "anything", "else", "is", "was", "be", "in",
   // Urdu/Hindi filler that shows up in code-switched orders
   "ka", "ki", "ke", "ko", "hai", "hain", "wala", "wali", "walay", "mujhe",
   "muje", "hume", "humein", "zara", "sa", "se", "mein", "may", "aur", "bhi",
@@ -62,6 +62,8 @@ const STOPWORDS = new Set([
 const NUM_WORDS: Record<string, number> = {
   one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8,
   nine: 9, ten: 10, eleven: 11, twelve: 12, a: 1, an: 1, couple: 2, few: 3,
+  thirteen:13,fourteen:14,fifteen:15,sixteen:16,seventeen:17,eighteen:18,nineteen:19,
+  twenty:20,thirty:30,forty:40,fifty:50,hundred:100,
   dozen: 12, single: 1, double: 2, triple: 3, zero: 0,
   // Urdu / Hindi numerals; callers mix languages mid-sentence
   ek: 1, aik: 1, ik:1, ikk:1, do: 2, teen: 3, tinn:3, char: 4, chaar: 4, panch: 5, paanch: 5, panj:5,
@@ -102,7 +104,8 @@ function quantityBefore(tokens: string[], start: number, used: boolean[] = []): 
       const multiplier = previous === "half" ? 0.5 : NUM_WORDS[previous] ?? (/^\d+$/.test(previous ?? "") ? Number(previous) : 1);
       return multiplier * 12;
     }
-    return NUM_WORDS[token] ?? Number(token);
+    const value=NUM_WORDS[token]??Number(token),prior=NUM_WORDS[tokens[i-1]];
+    return value<10&&prior>=20&&prior<=50&&prior%10===0&&!used[i-1]?prior+value:value;
   }
   return undefined;
 }
@@ -387,6 +390,7 @@ const STYLE_RULES=[
   {words:["lahori"],label:"lahori"},{words:["shinwari"],label:"shinwari"},{words:["shinvari"],label:"shinwari"},
   {words:["white"],label:"white"},{words:["black","pepper"],label:"black pepper"},{words:["kali","mirch"],label:"black pepper"},{words:["keema"],label:"keema"},
 ].map(rule=>({...rule,items:MENU.filter(item=>item.name.toLowerCase().includes(rule.label)&&(/karahi/i.test(item.name)||rule.label==="keema"&&/naan/i.test(item.name)))}));
+const LIST_FOOD_STARTS=new Set([...MULTIWORD_STARTS,...MENU.flatMap(item=>tokenize(item.name).slice(0,1)),...STYLE_RULES.flatMap(rule=>rule.words.slice(0,1)),...Object.keys(DISTINCTIVE),"burger","karahi","korma","tikka"]);
 export function candidateQuestion(candidates:Match[]):string{
   const items=candidates.map(candidate=>MENU_BY_ID.get(candidate.itemId)!);
   if(items.length===1)return `Did you mean ${items[0].name}?`;
@@ -398,7 +402,7 @@ export function candidateQuestion(candidates:Match[]):string{
 function shortFamily(tokens:string[]):RecognitionAnalysis|undefined{
   const rule=STYLE_RULES.find(rule=>rule.words.every(word=>tokens.includes(word)));
   if(!rule)return;
-  const allowed=new Set([...rule.words,"karahi","kadai","kadhai","kadahi",...Object.keys(PROTEIN_WORDS),...Object.keys(PORTION_WORDS)]);
+  const allowed=new Set([...rule.words,"karahi","kerahi","kadai","kadhai","kadahi",...Object.keys(PROTEIN_WORDS),...Object.keys(PORTION_WORDS)]);
   if(tokens.some(token=>!allowed.has(token)&&!STOPWORDS.has(token)&&!(token in NUM_WORDS)&&!(token in STT_NUMBERS)&&!/^\d+$/.test(token)))return;
   const protein=extractVariantHints(tokens.join(" ")).protein;
   const items=rule.items.filter(item=>(!protein||item.protein===protein)&&(!tokens.some(token=>/^(?:karahi|kadai|kadhai|kadahi)$/.test(token))||/karahi/i.test(item.name)));
@@ -416,6 +420,23 @@ function shortFamily(tokens:string[]):RecognitionAnalysis|undefined{
 // still fall back to asking the caller, never inventing a menu entry.
 export function analyzeUtterance(text: string): RecognitionAnalysis {
   const tokens = tokenize(text);
+  // Repeated quantity + food starts delimit an unpunctuated spoken list.
+  // They cannot split a one-word side out of an unresolved food compound.
+  const listCuts=[0];
+  for(let index=1;index<tokens.length-1;index++){
+    if(!(tokens[index] in NUM_WORDS)&&!/^\d+$/.test(tokens[index]))continue;
+    if(!LIST_FOOD_STARTS.has(tokens[index+1])||BOUNDARY.has(tokens[index-1])||tokens[index-1] in NUM_WORDS||["for","of","pack","packs","box","boxes"].includes(tokens[index-1]))continue;
+    if(tokens.slice(listCuts.at(-1),index).some(token=>LIST_FOOD_STARTS.has(token)))listCuts.push(index);
+  }
+  if(listCuts.length>1){
+    const combined:RecognitionAnalysis={matches:[],issues:[]};
+    for(let i=0;i<listCuts.length;i++){
+      const start=listCuts[i],end=listCuts[i+1]??tokens.length,part=analyzeUtterance(tokens.slice(start,end).join(" "));
+      combined.matches.push(...part.matches.map(match=>({...match,start:match.start+start,end:match.end+start})));
+      combined.issues.push(...part.issues.map(issue=>({...issue,start:issue.start+start,end:issue.end+start,candidates:issue.candidates.map(candidate=>({...candidate,start:candidate.start+start,end:candidate.end+start}))})));
+    }
+    return combined;
+  }
   const family=shortFamily(tokens);if(family)return family;
   const joined = tokens.join(" ");
   const matches = matchUtterance(text);
@@ -467,7 +488,8 @@ export function analyzeUtterance(text: string): RecognitionAnalysis {
   function clarify(start: number, end: number, ids: string[], question: string) {
     if (ids.length) add("clarify", "ambiguous", start, end, ids, question);
   }
-  find(/\b(?:karahi|kadai|kadhai|kadahi|kirby)\b/g, (start, end) => {
+  find(/\bunrecognizedword\b/g,(start,end)=>add("clarify","low_confidence",start,end,[],"I missed part of that item. Please repeat it in English."));
+  find(/\b(?:karahi|kerahi|kadai|kadhai|kadahi|kirby)\b/g, (start, end) => {
     if (hasExact(start, end)) return;
     const nearby = context(start, end).join(" ");
     const protein = extractVariantHints(nearby).protein;
@@ -478,7 +500,7 @@ export function analyzeUtterance(text: string): RecognitionAnalysis {
       (!style || item.name.toLowerCase().includes(style === "shinvari" ? "shinwari" : style === "kali mirch" ? "black pepper" : style)));
     clarify(start, end, ids, "Which protein and karahi style would you like?");
   });
-  find(/\b(?:lahori|white|shinwari|shinvari|black pepper|kali mirch)\s+(?:karahi|kadai|kadhai)\b/g, (start, end) => {
+  find(/\b(?:lahori|white|shinwari|shinvari|black pepper|kali mirch)\s+(?:karahi|kerahi|kadai|kadhai)\b/g, (start, end) => {
     if (hasExact(start, end)) return;
     const style = tokens[start] === "shinvari" ? "shinwari" : tokens[start] === "kali" ? "black pepper" : tokens[start];
     clarify(start, end, idsFor(item => (item.family ?? "").toLowerCase().includes(style)), "Which protein would you like for that karahi?");
@@ -563,6 +585,9 @@ export function analyzeUtterance(text: string): RecognitionAnalysis {
   }
 
   for (const match of matches) {
+    if(/\b(?:packs?|boxes?)\s+(?:of\s+)?(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\b/.test(tokens.slice(Math.max(0,match.start-6),match.start).join(" "))&&!issues.some(issue=>overlaps(issue,match))){
+      issues.push({kind:"clarify",reason:"quantity",heard:match.heard,start:match.start,end:match.end,candidates:[match],question:`How many menu orders of ${match.name}, rather than pieces?`});
+    }
     if (match.quantityUncertain && !issues.some(issue => overlaps(issue, match))) {
       issues.push({ kind: "clarify", reason: "quantity", heard: match.heard, start: match.start, end: match.end,
         candidates: [match], question: `Please repeat the quantity for ${match.name}; I heard conflicting numbers.` });

@@ -76,14 +76,14 @@ export class VoiceSession {
   private async reply(text: string, engineMs: number, finalAt: number, generation = this.generation) {
     if (this.closed) return false;
     const abort = new AbortController(); this.abort = abort;
-    const requestedAt = performance.now(); let first = true,contentFirst=true,sentBytes=0,kind:"neutral"|"informative"="informative",hasSegment=false;
+    const requestedAt = performance.now(); let first = true,contentFirst=true,sentBytes=0,kind:"neutral"|"informative"="informative",hasSegment=false,terminalFailure=false;
     const audioPlan = this.tts.plan?.(text);
     this.emit({ type: "usage", ttsCharacters: audioPlan?.dynamicCharacters ?? text.length, generation, provider: this.tts.name });
     try {
       for await (const chunk of this.tts.speak(text, abort.signal,event=>{
         if(abort.signal.aborted||generation!==this.generation||this.closed)return;
         if(event.type==="segment"){kind=event.kind??"informative";hasSegment=true;this.emit({type:"audio_segment",generation,kind});}
-        if(event.type==="terminal_failure")this.emit({type:"error",code:"tts_failed",reason:event.reason,generation,recoverable:true,preservePlayback:true,message:"Voice output failed. The cached notice will play; read the reply below. Your microphone and order remain active."});
+        if(event.type==="terminal_failure"){terminalFailure=true;this.emit({type:"error",code:"tts_failed",reason:event.reason,generation,recoverable:true,preservePlayback:true,message:"Voice output failed. The cached notice will play; read the reply below. Your microphone and order remain active."});}
         this.emit({type:"tts_telemetry",generation,event:{...event,observedMs:performance.now()-requestedAt}});
       })) {
         if (abort.signal.aborted || generation !== this.generation || this.closed) break;
@@ -99,7 +99,7 @@ export class VoiceSession {
         this.emit(framed);
         sentBytes+=chunk.length;
       }
-      if (!abort.signal.aborted && generation === this.generation){this.emit({ type: "audio_end", generation });return sentBytes>0;}
+      if (!abort.signal.aborted && generation === this.generation){this.emit({ type: "audio_end", generation });return sentBytes>0&&!terminalFailure;}
       return false;
     } catch(error) {
       const reason=error instanceof Error&&/rate limit|timeout|connection|PCM/i.test(error.message)?/rate limit/i.test(error.message)?"rate_limit":/timeout/i.test(error.message)?"timeout":/PCM/i.test(error.message)?"invalid_pcm":"connection":"synthesis";
