@@ -19,12 +19,15 @@ export class VoiceSession {
   constructor(private tts: Tts, private emit: Emit, private faqEnabled = false,private onConfirmed?:(summary:CallSummary,callbackProvided:boolean,publish:(ticket:DemoTicket)=>void)=>Promise<void>) {}
   endpointAnswers():string[]{
     if(this.state.removalQuantity)return ["one","two","three","all","both","only one","ek","aik","do","dono","sab","no","cancel",...Array.from({length:this.state.removalQuantity.available},(_,index)=>String(index+1))];
+    if(this.state.categoryOrder)return ["yes","yeah","no","nope","cancel"];
+    if(this.state.recognition)return ["yes","yeah","no","nope",...this.state.recognition.issues[0].candidates.map(candidate=>candidate.name)];
     if(this.state.pending)return ["Half","Full","have","haf","fool","bot"];
     if(this.state.phase==="ask_spice")return [...MODIFIERS.spice_level.options,"mild","medium","hot"];
     if(this.state.phase==="confirm"||this.state.removalConfirmation||this.state.answerConfirmation||this.state.browsing||/Anything else\?$/.test(this.state.lastReply??""))return ["yes","no","yeah","nope","that's all","that's it","enough","it's over","it's done now","nahi","nhi","yahi order hai"];
     return [];
   }
   recognitionHints():string[]{
+    if(this.state.categoryOrder)return ["yes","no",...this.state.categoryOrder.itemIds.map(id=>getItem(id)!.name)];
     if(this.state.removalQuantity)return ["one","both","all",getItem(this.state.removalQuantity.itemId)!.name];
     if(this.state.pendingCorrection)return ["no",...this.state.cart.map(line=>getItem(line.itemId)!.name)];
     if(this.state.recognition)return ["yes","no",...this.state.recognition.issues[0].candidates.map(candidate=>getItem(candidate.itemId)!.name)];

@@ -627,6 +627,13 @@ export function analyzeUtterance(text: string): RecognitionAnalysis {
     const local=tokens.slice(start,end);
     const noteAt=local.findIndex((word,i)=>["note","notes","without"].includes(word)||word==="on"&&local[i+1]==="the"&&local[i+2]==="side"||word==="no"&&!["spice","mirchi"].includes(local[i+1]));
     const unresolved=local.filter((word,offset)=>(noteAt<0||offset<noteAt)&&!covered.some(match=>start+offset>=match.start&&start+offset<match.end||match.quantityHeard===word&&start+offset===match.start-1)&&!STOPWORDS.has(word)&&!BOUNDARY.has(word)&&!nonFood.has(word)&&!(word in NUM_WORDS)&&!/^\d+$/.test(word));
+    const proteins=[...new Set(local.filter(word=>PROTEIN_WORDS[word]).map(word=>PROTEIN_WORDS[word]))];
+    if(covered.length===1&&proteins.length>1&&unresolved.some(word=>PROTEIN_WORDS[word])&&!issues.some(issue=>overlaps(issue,{start,end}))){
+      const item=MENU_BY_ID.get(covered[0].itemId)!;
+      const foodKeys=tokenize(item.name).filter(word=>!GENERIC_SOLO.has(word)&&!STOPWORDS.has(word)&&!(word in NUM_WORDS)&&!PROTEIN_WORDS[word]);
+      const ids=idsFor(candidate=>(candidate.family??candidate.category)===(item.family??item.category)&&proteins.includes(candidate.protein??PROTEIN_WORDS[tokenize(candidate.name)[0]])&&foodKeys.every(word=>tokenize(candidate.name).includes(word)));
+      if(ids.length>1){add("clarify","ambiguous",start,end,ids,`${proteins.join(" or ")}?`);for(const candidate of issues.find(issue=>issue.start===start&&issue.end===end)?.candidates??[]){candidate.qty=covered[0].qty;candidate.quantityExplicit=covered[0].quantityExplicit;}}
+    }
     const short=covered.filter(match=>MENU_TOKENS.get(match.itemId)!.length===1);
     if(short.length&&unresolved.length&&!issues.some(issue=>overlaps(issue,{start,end}))){
       const heard=tokens.slice(start,end).join(" ");

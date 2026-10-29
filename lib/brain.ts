@@ -8,6 +8,9 @@ import { RoutingEvent, recordTurn } from "./turn-metrics";
 import { MENU_SOURCE_SHA256 } from "./menu";
 import type { CartOperation } from "./cart-journal";
 import { normalizeCodeSwitch } from "./code-switch";
+import {isNoMoreAnswer,noChangeCompletion,completionWithTiming,preparationTimeQuestion} from "./closing";
+import {menuBrowsing,recipientPreference} from "./menu-browsing";
+import {classifyTurn} from "./turn-safety";
 
 export interface SmartTurnResult {
   reply: string;
@@ -48,7 +51,9 @@ export async function runSmartTurn(
       { route: "local", outcome: "local", candidateCount: 0 });
   }
 
-  const recognitionStart=performance.now();const analysis = normalized.unsupportedScript?{matches:[],issues:[]}:analyzeUtterance(trimmed);recognitionMs=performance.now()-recognitionStart;
+  const recognitionStart=performance.now();
+  const localOnly=normalized.unsupportedScript||classifyTurn(state,trimmed).intent==="removal"||isNoMoreAnswer(trimmed)||noChangeCompletion(trimmed)||completionWithTiming(trimmed)||preparationTimeQuestion(trimmed)||recipientPreference(trimmed)||menuBrowsing(trimmed,state.browsing);
+  const analysis = localOnly?{matches:[],issues:[]}:analyzeUtterance(trimmed);recognitionMs=performance.now()-recognitionStart;
   const dialogStart=performance.now();const local = runTurn(state, trimmed, analysis);dialogMs=performance.now()-dialogStart;
   // Pending confirmations, staff review and checkout remain local even if the
   // legacy dialog marks a failed clarification as needing conversational help.

@@ -60,3 +60,12 @@ test("Aura reconnects after an idle socket closes and produces the next reply",a
     assert.deepEqual(Buffer.concat(audio),Buffer.from([1,0]));assert.equal(connections,2);
   }finally{tts.close();for(const socket of server.clients)socket.terminate();await new Promise<void>(resolve=>server.close(()=>resolve()));}
 });
+
+test("cancelling Aura after partial PCM rejects rather than certifying a complete clip",async()=>{
+ const server=new WebSocketServer({port:0,host:"127.0.0.1"});await new Promise<void>(resolve=>server.once("listening",resolve));
+ const address=server.address();if(!address||typeof address==="string")throw Error("No fixture port");
+ server.on("connection",socket=>socket.on("message",bytes=>{const event=JSON.parse(bytes.toString());if(event.type==="Flush")socket.send(Buffer.from([1,0]));if(event.type==="Clear")socket.send(JSON.stringify({type:"Cleared"}));}));
+ const tts=new AuraWsTts(()=>new WebSocket(`ws://127.0.0.1:${address.port}`)),abort=new AbortController();
+ try{const iterator=tts.speak("Partial fixture.",abort.signal);assert.deepEqual((await iterator.next()).value,Buffer.from([1,0]));abort.abort();await assert.rejects(()=>iterator.next(),error=>(error as Error).name==="AbortError");}
+ finally{tts.close();for(const socket of server.clients)socket.terminate();await new Promise<void>(resolve=>server.close(()=>resolve()));}
+});

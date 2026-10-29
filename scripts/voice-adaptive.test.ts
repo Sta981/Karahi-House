@@ -7,7 +7,36 @@ import { phraseCompletion } from "../voice/phrase-completeness";
 import { mishearingsCsv } from "../voice/mishearings";
 import { TranscriptDecoder } from "../voice/stt";
 import { VoiceSession } from "../voice/session";
+import {ContinuationGuard} from "../voice/continuation";
+import {audioFile} from "../voice/audio-catalog";
 import type { Tts,SttEvent } from "../voice/contracts";
+
+test("finite acknowledgements and completion turns cannot merge with the next order",async()=>{
+ for(const text of ["yeah","no we're done thanks","we're done how long will my order take"]){
+  const emitted:any[]=[];let resume=0,resolve!:()=>void;
+  const guard=new ContinuationGuard({completeMs:1,incompleteMs:1,uncertainMs:1,answerMs:1},event=>{emitted.push(event);resolve();},{windowMs:10000,onResume:()=>resume++},()=>["yes","yeah","no"]);
+  const first=new Promise<void>(done=>resolve=done);guard.final({type:"final",text,audioEndSeconds:null});await first;
+  guard.confirmedSpeech();assert.equal(resume,0,text);
+  const second=new Promise<void>(done=>resolve=done);guard.final({type:"final",text:"two mango lassi",audioEndSeconds:null});await second;
+  assert.equal(emitted[1].text,"two mango lassi");assert.equal(emitted[1].continuationOf,undefined);guard.close();
+ }
+});
+
+test("unfinished removal and recipient frames wait while explicit completion remains complete",()=>{
+ for(const text of ["please remove","food for my","remove the","one fish pakora but","i want to change"])assert.equal(phraseCompletion(text),"incomplete",text);
+ assert.equal(phraseCompletion("we're done thank you very much"),"complete");
+});
+
+test("checkout, removal and group replies plus large USD totals use exact cached content",async()=>{
+ const base:Tts={name:"aura-2",warm:async()=>{},close(){},async *speak(){throw Error("No provider call expected");}},tts=new FixedAudioTts(base);await tts.warm();
+ try{
+  for(const text of ["Removed 1 Fish Pakora, 0 left. Removed 1 Fish Karahi, 0 left. Anything else?","Add 1 of each item in that category?","Red Bull isn't on this menu. Did you mean Soda (Can)?","Pickup is about 30 minutes; staff must confirm. Anything else?"]){assert.equal(tts.plan(text).dynamicCharacters,0,text);for await(const _chunk of tts.speak(text,new AbortController().signal)){} }
+  for(const [amount,labels]of [["$220.33",["2","hundred","20","dollars","and","33","cents"]],["$1001.01",["1","thousand","1","dollars","and","1","cent"]]] as const){
+   const chunks:Buffer[]=[];for await(const chunk of tts.speak(amount,new AbortController().signal))chunks.push(chunk);
+   assert.deepEqual(Buffer.concat(chunks),Buffer.concat(labels.map(label=>readFileSync(path.join("public/voice-audio",audioFile(label))))));
+  }
+ }finally{tts.close();}
+});
 test("completion distinguishes item/modifier answers from unfinished tails",()=>{
  for(const text of ["two garlic naan please","full","medium spice","that's all","one mango lassi"] )assert.equal(phraseCompletion(text),"complete",text);
  for(const text of ["one chicken biryani and","aik mango lassi aur","i would like three","one fish pakora with","can i have the"])assert.equal(phraseCompletion(text),"incomplete",text);

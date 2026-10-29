@@ -27,6 +27,17 @@ export function browseKey(text:string):string|undefined{
  return category?`category:${category}`:undefined;
 }
 export function browsePool(key:string):MenuItem[]{return MENU.filter(groups[key]??(item=>item.category===key.slice(9)));}
+export function categoryOrderRequest(text:string):{key:string;items:MenuItem[];qtyText?:string;mixed?:boolean}|undefined{
+ if(!/\b(?:add|i want|i need|i would like)\b/i.test(text)||! /\b(?:all|every|each)\b/i.test(text)||! /\b(?:section|sections|category|categories|dishes|items)\b/i.test(text))return;
+ const key=browseKey(text);if(!key)return;const items=browsePool(key);if(!items.length)return;
+ // Bulk expansion names exactly one real category. A second category/extra
+ // request cannot silently disappear into this operation.
+ if(MENU_CATEGORIES.filter(category=>text.toLowerCase().includes(category.toLowerCase())).length>1||/\b(?:and|aur|also|plus|with)\b/i.test(text))return {key,items,mixed:true};
+ const invalid=/\b(?:minus|negative)\b|-\s*\d|\d+\.\d+\s+(?:of\s+)?each\b|\b(?:half|quarter)\s+(?:of\s+)?each\b/i.test(text);
+ const qtyText=invalid?"invalid":text.match(/\b((?:twenty|thirty|forty)\s+(?:one|two|three|four|five|six|seven|eight|nine)|zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|\d+)(?:\s+\1)?(?:\s+of)?\s+each\b/i)?.[1];
+ return {key,items,qtyText};
+}
+export function recipientPreference(text:string):boolean{return /\b(?:something|food|meal)\s+for\s+(?:my|our|the)\s+(?:grandpa|grandma|grandfather|grandmother|parents?|family|friend|guest)\b/i.test(text);}
 export function browsePage(key:string,offset=0){
  const pool=browsePool(key),start=offset>=pool.length?0:offset,items=pool.slice(start,start+5);
  // Small tails are folded into an overlapping final page of at least three.

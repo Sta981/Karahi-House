@@ -26,13 +26,13 @@ test("all menu names, prices and common quantities have cached fragments",async(
  }for(let qty=1;qty<=10;qty++)assert.equal(tts.plan(String(qty)).dynamicCharacters,0);
  }finally{tts.close();}
 });
-test("computed USD subtotals compose exact dollars/cents; notes and larger unknown amounts stay dynamic",async()=>{
+test("computed USD subtotals compose exact dollars/cents; notes and unsupported amounts stay dynamic",async()=>{
  const tts=new FixedAudioTts(base);await tts.warm();try{
-  for(const dollars of [0,1,11,28,48,99])for(const cents of [0,1,7,48,97,99]){
+  for(const dollars of [0,1,11,28,48,99,100,123,220,1000,1001,9999])for(const cents of [0,1,7,48,97,99]){
    const text=`Subtotal $${dollars}.${String(cents).padStart(2,"0")}. Anything else?`;assert.equal(tts.plan(text).dynamicCharacters,0,text);
    let bytes=0;for await(const chunk of tts.speak(text,new AbortController().signal))bytes+=chunk.length;assert.ok(bytes>0);
   }
-  assert.ok(tts.plan("Notes: $28.97").dynamicCharacters>0);assert.ok(tts.plan("Subtotal $123.45.").dynamicCharacters>0);
+  assert.ok(tts.plan("Notes: $28.97").dynamicCharacters>0);assert.ok(tts.plan("Subtotal $12345.67.").dynamicCharacters>0);
  }finally{tts.close();}
 });
 test("live Aura releases buffered PCM before EOF and never retries already released words",async()=>{

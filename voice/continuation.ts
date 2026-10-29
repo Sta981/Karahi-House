@@ -2,6 +2,7 @@ import { performance } from "node:perf_hooks";
 import type { SttEvent } from "./contracts";
 import { phraseCompletion,type AdaptiveWait } from "./phrase-completeness";
 import { speechText } from "../lib/speech";
+import {isNoMoreAnswer,wantsMore,completionWithTiming} from "../lib/closing";
 type Final = Extract<SttEvent,{type:"final"}>;
 // Transport-only pause guard. Provider endpoints remain provisional until there
 // is sufficient local silence and the final covers all subsequent speech.
@@ -16,11 +17,11 @@ export class ContinuationGuard {
   private resumedAtSeconds = 0;
   private audioOriginAt?: number;
   private closed = false;
-  private emitted?:{event:Final;at:number};private mergeBase?:Final;private voicedFrames=0;
+  private emitted?:{event:Final;at:number;answerBoundary:boolean};private mergeBase?:Final;private voicedFrames=0;
   constructor(private wait: number|AdaptiveWait, private emit: (event:Final)=>void,private continuation?:{windowMs:number;onResume:()=>void},private answers?:()=>string[]) {}
   confirmedSpeech(){
     if(this.closed||this.mergeBase||!this.continuation||!this.emitted||performance.now()-this.emitted.at>this.continuation.windowMs)return;
-    if(/\b(?:that'?s all|that'?s it|nothing else|checkout|yes|no|correct)\s*[.!]?$/i.test(this.emitted.event.text))return;
+    if(this.emitted.answerBoundary||/\b(?:that'?s all|that'?s it|nothing else|checkout|yes|no|correct)\s*[.!]?$/i.test(this.emitted.event.text))return;
     this.mergeBase=this.emitted.event;this.continuation.onResume();
   }
   private isAnswer(){const heard=speechText(this.pending?.text??"").replace(/^(?:yes|yeah) please$/,"yes");return !!this.answers?.().some(answer=>speechText(answer)===heard);}
@@ -64,7 +65,7 @@ export class ContinuationGuard {
       if(!this.pending||this.closed)return;
       if(performance.now()-this.lastVoiceAt<this.duration()-1){this.schedule();return;}
       const event=this.pending;this.pending=undefined;
-      this.emitted={event,at:performance.now()};
+      this.emitted={event,at:performance.now(),answerBoundary:this.isAnswerText(event.text)||isNoMoreAnswer(event.text)||wantsMore(event.text)||!!completionWithTiming(event.text)};
       this.emit({...event,endpointReason:`${event.endpointReason??"provider_final"}+${typeof this.wait==="number"?"fixed":`adaptive_${this.isAnswerText(event.text)?"answer":phraseCompletion(event.text)}`}_${settleMs}ms`});
     },delay);
   }

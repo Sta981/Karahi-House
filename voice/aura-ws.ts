@@ -17,7 +17,7 @@ export class AuraWsTts implements Tts {
     const url = new URL("wss://api.deepgram.com/v1/speak");
     for (const [key, value] of Object.entries({ model: "aura-2-thalia-en", encoding: "linear16", sample_rate: "24000", mip_opt_out: "true" })) url.searchParams.set(key, value);
     return new WebSocket(url, { headers: { Authorization: `Token ${key}` }, handshakeTimeout: 15000 });
-  }) {}
+  },private synthesisTimeoutMs=20000) {}
   warm(): Promise<void> {
     if (this.socket?.readyState === WebSocket.OPEN) return Promise.resolve();
     if (this.socket?.readyState === WebSocket.CONNECTING && this.connecting) return this.connecting;
@@ -70,7 +70,7 @@ export class AuraWsTts implements Tts {
       job = { chunks: [], wake: () => {}, done: false, cancelled: false, finished: done, finish() { this.done = true; this.wake(); finished(); } };
       this.current = job;
       signal.addEventListener("abort", abort, { once: true });
-      timer = setTimeout(() => { this.fail("Aura synthesis timeout"); this.socket?.terminate(); }, 20000);
+      timer = setTimeout(() => { this.fail("Aura synthesis timeout"); this.socket?.terminate(); }, this.synthesisTimeoutMs);
       for (const part of splitSpeech(text, 120)) this.socket!.send(JSON.stringify({ type: "Speak", text: auraPronunciation(part) }));
       this.socket!.send(JSON.stringify({ type: "Flush" }));
       while (!job!.done || job!.chunks.length) {
@@ -78,6 +78,7 @@ export class AuraWsTts implements Tts {
         if (job!.chunks.length) { yield job!.chunks.shift()!; continue; }
         await new Promise<void>(resolve => { job!.wake = resolve; });
       }
+      signal.throwIfAborted();
       if (job!.error) throw job!.error;
     } finally {
       if (job && !job.done) {

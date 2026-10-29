@@ -34,7 +34,10 @@ The synthetic builds used the same thirty public inputs per configuration with r
 | `318a3d3`, `baseline+adaptive800` | Owner real mic / Nova-3 en-IN / Aura-2 | 11/11 logged turns | 9/11 | 2.900 / 3.713 |
 | `bef1721`, first export, `baseline+adaptive1100` | Owner real mic / Nova-3 multi / Aura-2 | 9/11 logged rows | 9/11 | 3.384 / 56.681 |
 | `bef1721`, second export, `baseline+adaptive1100` | Owner real mic / Nova-3 multi / Aura-2 | 2/7 logged rows | 1/7 | 3.299 / 4.802 |
-| Current mixed-list/recovery revision | All three configs | No live measurement yet | Not measured | Not measured |
+| `973f8b2`, export (3), `baseline+adaptive1100` | Owner real mic / Nova-3 multi / Aura-2 | 5/7 logged rows | 4/7 | 5.601 / 9.710 |
+| `973f8b2`, export (4), `baseline+adaptive1100` | Owner real mic / Nova-3 multi / Aura-2 | 18/20 logged rows | 13/20 | 1.836 / 7.605 |
+| `973f8b2`, export (5), `baseline+adaptive1100` | Owner real mic / Nova-3 multi / Aura-2 | 14/15 logged rows | 13/15 | 3.539 / 8.076 |
+| Current checkout/category revision | All three configs | No live measurement yet | Not measured | Not measured |
 
 Real-mic worst informative latency was **17.344 s**; three rows have no informative measurement, four report barge-in cuts. Old first transport-byte median 1.879 s includes neutral audio and is not the informative headline. The pasted page was a transient nineteen-measurement snapshot; the complete CSV has twenty. These values cannot be attributed to a newer build without a retest recording its commit/configuration.
 
@@ -47,6 +50,8 @@ The atomic trial is a retained regression: waiting for body completion caused lo
 Earlier static-cache load was 353 ms and total dev startup 6.84 s. Startup, build time and warm-turn latency are different. These are not promises for another laptop or host. Supporting reports: [menu/playback](menu-playback-followups.md), [action safety](action-safety.md). Raw caller CSVs remain private.
 
 ## Voice and deployment
+
+The three `973f8b2` exports have 42 logged rows, 37 informative arrivals and 30 finished replies; partial/failed playback can still have an informative timestamp. Completion, category/nuggets and removal failures are addressed in the [three-call follow-up](three-call-checkout-followups.md). Clean confirmations cannot merge into the next order, but garbled mixed-language finals still require clarification. The new build's latency and real-mic cutoff rate are unmeasured.
 
 The two `bef1721` multilingual exports exposed native-word/list failures and a 56.681-second useful-audio wait. The second has five missing informative arrivals, four manual cuts and two browser-VAD cuts; its percentiles cover just two replies. Engine p50/p95 was 5.1/35.0 ms and 27.7/92.4 ms. Trickling TTS and complete-reply buffering caused the longest wait. A new six-second synthesis deadline plays a cached failure notice on exhaustion; it may reject slow otherwise healthy dynamic speech. It does not bound the whole speech-to-reply interval. See [diagnosis and tests](multilingual-live-followups.md). New real-mic timing is unmeasured.
 

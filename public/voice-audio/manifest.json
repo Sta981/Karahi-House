@@ -1,6 +1,6 @@
 {
   "kind": "fixed-synthetic-menu-templates-only",
-  "identity": "ce2e6ac048ffcb20e8b1918ea1946c1961fee9c7c665d81dca3dd8c4cd3ef573",
+  "identity": "6ce582fe511b700c552f6ce48ecff1535df87a14629466bbe28e7662114755d8",
   "voice": "aura-2-thalia-en:linear16:24000:v2",
   "sampleRate": 24000,
   "entries": [
@@ -262,6 +262,139 @@
       "file": "3e520a8ef49ec980bfe853f42b06885378f11222e9b63ab5e11518191bf974e3.pcm",
       "bytes": 142080,
       "sha256": "930361fd8e3342bc1bdb69e5c4d5dda962af873122772cb62a971eee0a1d55e5"
+    },
+    {
+      "id": "client_followup_0",
+      "text": "What else would you like?",
+      "file": "40d2c072a0f20acc03e62dbbea48526071206a59bd16925ac2ea8468dbc28ee9.pcm",
+      "bytes": 51840,
+      "sha256": "a132294fc79261d97361db08f9eb8ee1104be6af10eb84d655862885e1881254"
+    },
+    {
+      "id": "client_followup_1",
+      "text": "Which item should I remove? You can also say cancel.",
+      "file": "70c8dd3fc787ffddaabb504f329bd24b4175ac130970e878742eab32e87b91df.pcm",
+      "bytes": 178560,
+      "sha256": "254f1c5840ab546ac66b63122c54d0321f0abc18b92b24f3b6612a9b61450d6b"
+    },
+    {
+      "id": "client_followup_2",
+      "text": "I'm here. Which item should I remove?",
+      "file": "617f8808e807ab743280a21df0257169935735e860dadfcbc1411fc671649eb0.pcm",
+      "bytes": 120960,
+      "sha256": "645dee4b89d594a7d41c3e977869d28e2613f2451a845d31b6400e2d769ac4f1"
+    },
+    {
+      "id": "client_followup_3",
+      "text": "isn't in your cart. Which item should I remove?",
+      "file": "701cdc735e2bd0025cd9828df56e85c7e3bfc39199e3d9a5f17559156f948619.pcm",
+      "bytes": 136320,
+      "sha256": "e2f752e20c57915e2c30437269bed1555cab14613241ff67a51e8ab8a50becca"
+    },
+    {
+      "id": "client_followup_4",
+      "text": "What should I fix?",
+      "file": "4fd167273d123f5622ba32c9d45f9fb1418405ac73272c4cef49f9430438b20b.pcm",
+      "bytes": 59520,
+      "sha256": "a2ece5e5739a21252673d26f72a244a459cb9a919981f4f68ce011f2dc6f75a7"
+    },
+    {
+      "id": "client_followup_5",
+      "text": "Add ",
+      "file": "546bedde59ff61ce8ed6ee7a2a5a55af8764a19bc20b907484fe7d16fa66bab8.pcm",
+      "bytes": 26880,
+      "sha256": "6c5df223b317faf0d5ebb74c260b6145bd8b0dc6317c6dd1926d4ebb7164d3cc"
+    },
+    {
+      "id": "client_followup_6",
+      "text": "of each item in that category?",
+      "file": "43aaf81301f952d5dafd2f07c6a530835d455e0b75a737ff6d88506eb8e3ac0a.pcm",
+      "bytes": 92160,
+      "sha256": "4e4cc9aad4576f7c43bd8555272e6cd3c365767d252a145f9026f2f98d770990"
+    },
+    {
+      "id": "client_followup_7",
+      "text": "Please say yes to add those items, or no to leave them out.",
+      "file": "c66654482d0858fe1a40c36e6f525396ba9773bbf820089116451b43c2154742.pcm",
+      "bytes": 184320,
+      "sha256": "1b475710a01f94bf450f00b9ce8d7b9b1d5a10d0f143d37742a80d5dcecd90fe"
+    },
+    {
+      "id": "client_followup_8",
+      "text": "Left those items out. Anything else?",
+      "file": "bc6bbb2d7279f730c62f27c21848f67e854eb2a2b024dbb404a7d0d506835d55.pcm",
+      "bytes": 120960,
+      "sha256": "eca85153d385943e01584121b2fc8cf12ce0b5b2527548e2ffc7c13f5f0b49fb"
+    },
+    {
+      "id": "client_followup_9",
+      "text": "Would they prefer vegetarian food, chicken, or something else?",
+      "file": "d5631496448a283f41dae5b8911af175b48448e22ca7ae94e1f94e444605839d.pcm",
+      "bytes": 190080,
+      "sha256": "3d345da47514b17f8aa6e9a2fbca5fa7d9b0380feb6c613d909f9605d2fb9cc8"
+    },
+    {
+      "id": "client_followup_10",
+      "text": "This demo is pickup only. ",
+      "file": "79860cfc2a6187aaddc5115249508e67156d3de2d99c86eff38c29ba07ebf368.pcm",
+      "bytes": 94080,
+      "sha256": "c87abc44c219b599bdeadead45c539ecc04c9045082062c529ffc4e12b316ff5"
+    },
+    {
+      "id": "client_followup_11",
+      "text": "What name should I put on the pickup request?",
+      "file": "05114c20b761f5849ab7629bbff103515acb8582f2720a0b6685f94c9bb30b99.pcm",
+      "bytes": 113280,
+      "sha256": "7bb596ac6ab3323b8247dfbf4053e387b65cb8ac775bfc1fe704f30fdc93bb58"
+    },
+    {
+      "id": "client_followup_12",
+      "text": "Which existing item should I replace, and with what?",
+      "file": "5a2ae914f81972421588ef9aca4dd713a535ee16eee3981a452a8d9bee341cef.pcm",
+      "bytes": 149760,
+      "sha256": "d04ac991a6a6702317e674080e0ea46b3b016ed3cbd7b266229498173a921768"
+    },
+    {
+      "id": "client_followup_13",
+      "text": "Which biryani: chicken, lamb, goat, or vegetable?",
+      "file": "9985a4d2199a98ade549d6b1deb2e21731ebb32fe7ae7ec0deccf700f523fed0.pcm",
+      "bytes": 186240,
+      "sha256": "f4ce4bd006b2b378663a8dd2db22b28fcaf25c01e595da6a24500e72ffcc6e23"
+    },
+    {
+      "id": "client_followup_14",
+      "text": "Red Bull isn't on this menu. Did you mean ",
+      "file": "2cc2225ef1c26ae4ba82a9a09b9804500cd50682db968a93f9b4ae0f1c0f19ff.pcm",
+      "bytes": 122880,
+      "sha256": "76fc9024e0ed14fd62e679707c1440dc0c07068403e9925a070f63db65dda387"
+    },
+    {
+      "id": "client_followup_15",
+      "text": "left.",
+      "file": "ac2aaae02a9efd83485c80b535278ff71866e08c1c5ebd81525a4cd52c71d04e.pcm",
+      "bytes": 32640,
+      "sha256": "d53468d5e07f9e78f5f2f8247bd0cb3e28feab2ca9d1baf4dc5bac554b711f8b"
+    },
+    {
+      "id": "client_followup_16",
+      "text": "total.",
+      "file": "f730191118842fefa75afba979e0f4b5e386af6be2bc699fa944e8cc4b0261b8.pcm",
+      "bytes": 34560,
+      "sha256": "412d041ec103eef25ebcba68fae76ef0e97d256a2318d5163c34c389797d2750"
+    },
+    {
+      "id": "client_followup_17",
+      "text": "hundred",
+      "file": "00c83a4c262df5193b4345449fa4d8001091ce820c0345419a75e35276d63ba7.pcm",
+      "bytes": 40320,
+      "sha256": "0277526dbe53cafe1fadc06fa31b7cb348897ae761b9d1a8ca61859d4c31a0b0"
+    },
+    {
+      "id": "client_followup_18",
+      "text": "thousand",
+      "file": "c40c06cc6fc68356e8f86fc82a97e86d6865cbb685eb0b7d20b5b0068ce3a562.pcm",
+      "bytes": 32640,
+      "sha256": "748829429a401c85fcac48cc939baf8a9873ed61130e899776ff60185f958832"
     },
     {
       "id": "common_0",

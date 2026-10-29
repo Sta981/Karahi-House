@@ -18,9 +18,11 @@
     "lassi": ["MANGO_LASSI", "SWEET_YOGURT_LASSI", "SALTY_YOGURT_LASSI"],
     "lasi": ["MANGO_LASSI", "SWEET_YOGURT_LASSI", "SALTY_YOGURT_LASSI"],
     "maghaz": ["BRAINS_KARAHI"],
-    "mughaz": ["BRAINS_KARAHI"]
+    "mughaz": ["BRAINS_KARAHI"],
+    "nuggets": ["CHICKEN_NUGGETS_8_PIECES"]
   },
   "nearMisses": [
+    { "phrases": ["red bull", "red bulls"], "displayName": "Red Bull", "candidates": ["SODA_CAN"] },
     { "phrases": ["butter chicken", "chicken butter masala", "butter kitchen"], "displayName": "Butter Chicken", "candidates": ["BUTTER_TIKKA_MASALA"], "note": "Its protein is unspecified on this menu." },
     { "phrases": ["palak paneer", "palak pan here"], "displayName": "Palak Paneer", "candidates": ["SAAG_PANEER"] }
   ]

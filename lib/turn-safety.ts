@@ -1,7 +1,8 @@
 import type { CartLine, DialogState } from "./dialog";
 import { hasCorrectionMarkers, isRemovalCommand } from "./order-operations";
 import { MENU, MODIFIERS } from "./menu";
-import {isCompletionSignal} from "./closing";
+import {isCompletionSignal,isNoMoreAnswer,preparationTimeQuestion} from "./closing";
+import {recipientPreference} from "./menu-browsing";
 const CANONICAL_ORDER_NAMES=MENU.flatMap(item=>[item.name,item.website_name].filter((name):name is string=>!!name).map(name=>name.toLowerCase()));
 
 export type TurnIntent = "add_order" | "correction" | "removal" | "question" | "complaint" | "confirm" | "done" | "chitchat";
@@ -25,12 +26,18 @@ export function classifyTurn(state: DialogState, raw: string): IntentDecision {
   const choose = (intent: TurnIntent, reason: string): IntentDecision => ({ intent, reason });
   const cartConcern = /\b(?:why|you (?:have )?added|you put|you charged|you did|didn'?t|did not|wrong|mistake|too many|i (?:already )?(?:said|ordered|asked for))\b/i.test(text);
   const explicitFix = /\b(?:please\s+)?(?:remove|delete|change|replace|make it|make that|set|reduce)\b/i.test(text);
+  if(/\b(?:don't|do not|never)\s+(?:add|order|include|give|bring)\b/i.test(text))return choose("complaint","negated addition is read-only");
+  if(recipientPreference(text))return choose("question","ask a food preference without inventing a dish");
+  if(/^(?:don't|do not|isn't|aren't|haven't)\s+(?:you|there|it)\b/i.test(text))return choose("question","negative question is not an order");
   if (cartConcern && !explicitFix && desiredTotal(text) === undefined) return choose("complaint", "cart concern is read-only");
   if (/^(?:why|how come)\b/i.test(text) && desiredTotal(text) === undefined && !/\b(?:please remove|please change|please set)\b/i.test(text)) return choose("complaint", "explanation requested");
   if (/\b(?:what(?:'s| is)?|how much|how many|how long|do you|does it|is there|are there|is .*in (?:my|the) (?:cart|order)|already have|in (?:that|the|my) cart|cart section|in my order|show (?:me )?(?:my|the) (?:cart|order))\b/i.test(text) &&
       !/^(?:add|remove|delete|replace|change|make|set|i want|i need|can i (?:get|have)|could i (?:get|have))\b/i.test(text)) return choose("question", "information requested");
   if(/^(?:is|are|was|were|does|did|will|would|could|can|do (?:you|we|they|i))\b/i.test(text)&&!/^(?:can|could|would) (?:i (?:get|have)|you (?:add|give|bring|get|remove|change|make))\b/i.test(text))return choose("question","question form");
   if (state.removalQuantity || state.removalConfirmation || state.pendingCorrection?.segment.action === "remove") return choose("removal", "answer bound to pending removal");
+  if(state.categoryOrder&&(/^(?:yes|yeah|yep|haan|no|nope|cancel)(?: please)?[.!]?$/i.test(text)||/^(?:one|two|three|four|five|\d+)(?:\s+of)?\s+each(?:\s+please)?[.!]?$/i.test(text)))return choose(/^no|^cancel/i.test(text)?"confirm":"add_order","explicit pending category answer");
+  if(preparationTimeQuestion(text))return choose("question","preparation-time question is read-only");
+  if(isNoMoreAnswer(text)&&! /^(?:no|nope|nah|nahi|correct|that'?s right)[.!]?$/i.test(text))return choose("done","finite completion before correction parsing");
   if(state.pendingOrderList&&/^(?:add|add them|extra|extra items|add these|add these items|replace|replace it|replace the order|replace my order|replace the current order)[.!]?$/i.test(text))return choose("correction","explicit pending list action");
   if (isRemovalCommand(text)) return choose(/\b(?:and|aur|plus)\s+(?:add|give|bring|get|i want)\b/i.test(text)?"correction":"removal", "explicit removal or mixed action request");
   if (desiredTotal(text) !== undefined || hasCorrectionMarkers(text) || /^(?:no[, ]+|not\b|instead\b)/i.test(text)) return choose("correction", "explicit correction");

@@ -6,7 +6,7 @@ const endings=[...new Set(MENU.flatMap(item=>[item.name,item.website_name,...ite
 export type Completion="complete"|"incomplete"|"uncertain";
 export function phraseCompletion(text:string):Completion{
  const heard=speechText(text).trim();
- if(/\b(?:and|aur|with|plus|the|a|an|one|two|three|four|five|six|seven|eight|nine|ten|aik|ek|do|teen|char|chaar|paanch|\d+)\s*$/.test(heard))return "incomplete";
+ if(/\b(?:and|aur|with|plus|but|because|for|of|to|remove|delete|replace|switch|change|my|your|his|her|the|a|an|one|two|three|four|five|six|seven|eight|nine|ten|aik|ek|do|teen|char|chaar|paanch|\d+)\s*$/.test(heard))return "incomplete";
  if(isCompletionSignal(text))return "complete";
  if(/\b(?:half|full|haf|fool|that s all|thats all|that will be all|nothing else|yes|no|correct|bas)\s*$/.test(heard))return "complete";
  if(MODIFIERS.spice_level.options.some(option=>heard.endsWith(speechText(option)))||/\b(?:mild|medium|spicy)\s*$/.test(heard))return "complete";

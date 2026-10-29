@@ -44,10 +44,14 @@ export class FixedAudioTts implements Tts {
     if(left&&right&&(!next||index<next.at||index===next.at&&phrase.text.length>next.text.length))next={at:index,text:phrase.text};
    }
    // Local USD amounts only, outside caller notes. Unit-price clips win when
-   // present; other amounts below $100 compose exact integer dollars/cents.
-   const amount=/\$(\d{1,2})\.(\d{2})(?!\d)/g;amount.lastIndex=at;const match=amount.exec(text);
+   // present; other amounts below $10,000 compose integer dollars/cents.
+   const amount=/\$(\d{1,4})\.(\d{2})(?!\d)/g;amount.lastIndex=at;const match=amount.exec(text);
    if(match&&(noteAt<0||match.index<noteAt)&&(!next||match.index<next.at)){
-    const dollars=Number(match[1]),cents=Number(match[2]),labels=[String(dollars),dollars===1?"dollar":"dollars",...(cents?["and",String(cents),cents===1?"cent":"cents"]:[])];
+    const dollars=Number(match[1]),cents=Number(match[2]),numberLabels:string[]=[];
+    if(dollars>=1000)numberLabels.push(String(Math.floor(dollars/1000)),"thousand");
+    const remainder=dollars%1000;if(remainder>=100)numberLabels.push(String(Math.floor(remainder/100)),"hundred");
+    if(dollars%100||!numberLabels.length)numberLabels.push(String(dollars%100));
+    const labels=[...numberLabels,dollars===1?"dollar":"dollars",...(cents?["and",String(cents),cents===1?"cent":"cents"]:[])];
     if(labels.every(label=>this.cache.has(label))){
       if(this.derivedPrices.size>=128)this.derivedPrices.delete(this.derivedPrices.keys().next().value!);
       this.derivedPrices.set(match[0],labels.flatMap(label=>this.cache.get(label)!));next={at:match.index,text:match[0]};
