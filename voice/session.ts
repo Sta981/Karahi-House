@@ -9,6 +9,7 @@ import { rollbackCartOperations,type CartOperation } from "../lib/cart-journal";
 import type { BargeTrigger } from "./barge-in";
 import {romanTranscript} from "./roman-transcript";
 import {isCompletionSignal} from "../lib/closing";
+import {canAcceptRecognition} from "../lib/answer-scope";
 
 export class VoiceSession {
   private state = newState({closingMode:"anything_else"});
@@ -20,7 +21,7 @@ export class VoiceSession {
   endpointAnswers():string[]{
     if(this.state.removalQuantity)return ["one","two","three","all","both","only one","ek","aik","do","dono","sab","no","cancel",...Array.from({length:this.state.removalQuantity.available},(_,index)=>String(index+1))];
     if(this.state.categoryOrder)return ["yes","yeah","no","nope","cancel"];
-    if(this.state.recognition)return ["yes","yeah","no","nope",...this.state.recognition.issues[0].candidates.map(candidate=>candidate.name)];
+    if(canAcceptRecognition(this.state))return ["yes","yeah","no","nope",...this.state.recognition!.issues[0].candidates.map(candidate=>candidate.name)];
     if(this.state.pending)return ["Half","Full","have","haf","fool","bot"];
     if(this.state.phase==="ask_spice")return [...MODIFIERS.spice_level.options,"mild","medium","hot"];
     if(this.state.phase==="confirm"||this.state.removalConfirmation||this.state.answerConfirmation||this.state.browsing||/Anything else\?$/.test(this.state.lastReply??""))return ["yes","no","yeah","nope","that's all","that's it","enough","it's over","it's done now","nahi","nhi","yahi order hai"];
@@ -30,7 +31,7 @@ export class VoiceSession {
     if(this.state.categoryOrder)return ["yes","no",...this.state.categoryOrder.itemIds.map(id=>getItem(id)!.name)];
     if(this.state.removalQuantity)return ["one","both","all",getItem(this.state.removalQuantity.itemId)!.name];
     if(this.state.pendingCorrection)return ["no",...this.state.cart.map(line=>getItem(line.itemId)!.name)];
-    if(this.state.recognition)return ["yes","no",...this.state.recognition.issues[0].candidates.map(candidate=>getItem(candidate.itemId)!.name)];
+    if(canAcceptRecognition(this.state))return ["yes","no",...this.state.recognition!.issues[0].candidates.map(candidate=>getItem(candidate.itemId)!.name)];
     if(this.state.pending)return ["Half","Full"];
     if(this.state.phase==="ask_spice")return MODIFIERS.spice_level.options;
     if(this.state.phase==="confirm")return ["yes","no"];

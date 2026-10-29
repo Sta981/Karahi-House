@@ -9,7 +9,29 @@ import { TranscriptDecoder } from "../voice/stt";
 import { VoiceSession } from "../voice/session";
 import {ContinuationGuard} from "../voice/continuation";
 import {audioFile} from "../voice/audio-catalog";
+import {browsePage} from "../lib/menu-browsing";
 import type { Tts,SttEvent } from "../voice/contracts";
+
+test("recognition endpoint hints follow only the currently emitted question",async()=>{
+ const events:any[]=[];const session=new VoiceSession({name:"fixture",warm:async()=>{},close(){},async *speak(){yield Buffer.from([0,0]);}},event=>events.push(event));
+ try{
+  await session.turn("one burger");assert.ok(session.endpointAnswers().includes("Kids Chicken Burger"));
+  await session.turn("one goat white karahi");await session.turn("can the half portion feed four guests");
+  assert.ok(session.endpointAnswers().includes("Half"));assert.ok(!session.endpointAnswers().includes("Kids Chicken Burger"));assert.ok(!session.recognitionHints().includes("Kids Chicken Burger"));
+  await session.turn("yes");const reply=events.filter(event=>event.type==="reply").at(-1);assert.ok(!reply.cart.some((line:any)=>line.itemId==="KIDS_CHICKEN_BURGER"));
+ }finally{session.close();}
+});
+test("an explicit action without its food target remains an unfinished transcript",()=>{
+ for(const text of ["please include","i need you to add","could you order"])assert.equal(phraseCompletion(text),"incomplete");
+ assert.equal(phraseCompletion("add two mango lassi"),"complete");
+ assert.notEqual(phraseCompletion("what is the subtotal for my order"),"incomplete");
+});
+test("subtotal, serving-size and protein browsing replies need no dynamic provider speech",async()=>{
+ const tts=new FixedAudioTts({name:"aura-2",warm:async()=>{},close(){},async *speak(){throw Error("Unexpected provider call");yield Buffer.alloc(0);}});await tts.warm();
+ try{
+  for(const reply of ["Your current subtotal is $120.05; tax is not configured. Anything else?","I can't verify serving sizes. Staff can advise. Half or Full for Goat White Karahi?",browsePage("protein:lamb").reply,browsePage("protein:beef").reply]){assert.equal(tts.plan(reply).dynamicCharacters,0,reply);let bytes=0;for await(const chunk of tts.speak(reply,AbortSignal.timeout(10000)))bytes+=chunk.length;assert.ok(bytes>0);}
+ }finally{tts.close();}
+});
 
 test("finite acknowledgements and completion turns cannot merge with the next order",async()=>{
  for(const text of ["yeah","no we're done thanks","we're done how long will my order take"]){

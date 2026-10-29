@@ -1,7 +1,7 @@
 import { MENU, MenuItem } from "./menu";
 import { similarity, preparePhonetic, preparedSimilarity, similarityUpperBound, similarityAtLeast, PreparedPhonetic } from "./phonetic";
 import POLICY from "./recognition-policy.json";
-import { speechTokens, exactFullNameIds } from "./speech";
+import { speechTokens,speechText, exactFullNameIds } from "./speech";
 
 const STT_NUMBERS: Record<string, number> = POLICY.sttNumbers;
 const DISTINCTIVE: Record<string, string[]> = POLICY.distinctiveTokens;
@@ -155,6 +155,17 @@ export function extractQuantityHint(text: string): number | undefined {
   return quantityBefore(tokens, tokens.length);
 }
 
+// Cart removal shares the same adjacency rule as additions. The caller's
+// target must independently resolve; "for me" cannot become quantity four.
+export function itemAdjacentQuantity(text:string):number|undefined {
+ const tokens=tokenize(text),found=new Map<string,number>();
+ for(let start=0;start<tokens.length;start++){
+  const repaired=sttQuantityBefore(tokens,start);if(!repaired)continue;
+  for(const label of VOCAB_BY_FIRST.get(tokens[start])??[])if(label.tokens.every((word,index)=>tokens[start+index]===word))found.set(label.itemId,repaired.qty);
+ }
+ return found.size===1?[...found.values()][0]:undefined;
+}
+
 // Build the vocabulary once: every item name + alias, tokenized.
 // Conjunctions are stripped from both sides of the comparison ("fish and
 // chips" and "fish chips" should look identical).
@@ -179,6 +190,8 @@ for (const item of MENU) {
 // insertion order for score ties and all existing clarification decisions.
 const VOCAB_BY_LENGTH = new Map(Array.from({length: 7}, (_, index) => [index + 1,
   VOCAB.filter(entry => Math.abs(entry.tokenCount - (index + 1)) <= 1)]));
+const VOCAB_BY_FIRST=new Map<string,VocabEntry[]>();
+for(const entry of VOCAB){const first=entry.tokens[0];VOCAB_BY_FIRST.set(first,[...(VOCAB_BY_FIRST.get(first)??[]),entry]);}
 const MULTIWORD_STARTS = new Set(VOCAB.filter(entry => entry.tokenCount > 1).map(entry => entry.tokens[0]));
 // Keys contain lengths only; values contain immutable menu entries, no caller text.
 const LENGTH_COHORTS=new Map<string,VocabEntry[]>();
@@ -500,6 +513,12 @@ export function analyzeUtterance(text: string): RecognitionAnalysis {
       (!style || item.name.toLowerCase().includes(style === "shinvari" ? "shinwari" : style === "kali mirch" ? "black pepper" : style)));
     clarify(start, end, ids, "Which protein and karahi style would you like?");
   });
+  // These recorded family sounds are proposals only, and only immediately
+  // after a real protein. No guessed karahi style can enter the cart.
+  for(const heard of POLICY.karahiMishearingsAfterProtein)find(new RegExp(`\\b(?:chicken|lamb|goat|beef|fish|shrimp)\\s+${heard}\\b`,"g"),(start,end)=>{
+    const protein=tokens[start],items=MENU.filter(item=>/karahi/i.test(item.name)&&new RegExp(`^${protein}\\b`,"i").test(item.name));
+    if(items.length)add("clarify","stt_repair",start,end,items.map(item=>item.id),`Did you mean ${items.map(item=>item.name).join(" or ")}?`);
+  });
   find(/\b(?:lahori|white|shinwari|shinvari|black pepper|kali mirch)\s+(?:karahi|kerahi|kadai|kadhai)\b/g, (start, end) => {
     if (hasExact(start, end)) return;
     const style = tokens[start] === "shinvari" ? "shinwari" : tokens[start] === "kali" ? "black pepper" : tokens[start];
@@ -635,6 +654,10 @@ export function analyzeUtterance(text: string): RecognitionAnalysis {
       if(ids.length>1){add("clarify","ambiguous",start,end,ids,`${proteins.join(" or ")}?`);for(const candidate of issues.find(issue=>issue.start===start&&issue.end===end)?.candidates??[]){candidate.qty=covered[0].qty;candidate.quantityExplicit=covered[0].quantityExplicit;}}
     }
     const short=covered.filter(match=>MENU_TOKENS.get(match.itemId)!.length===1);
+    if(covered.length&&unresolved.some(word=>["fried","fry","roast","roasted","grilled","steamed"].includes(word))&&!issues.some(issue=>overlaps(issue,{start,end}))){
+      const ids=[...new Set(covered.map(match=>match.itemId))];
+      add("clarify","low_confidence",start,end,ids,`Did you mean ${ids.map(id=>MENU_BY_ID.get(id)!.name).join(" or ")}?`);
+    }
     if(short.length&&unresolved.length&&!issues.some(issue=>overlaps(issue,{start,end}))){
       const heard=tokens.slice(start,end).join(" ");
       const choices=[...new Set([...closestMenuItems(heard,3).map(item=>item.id),...short.map(match=>match.itemId)])].slice(0,4);
@@ -673,6 +696,7 @@ const RANK_LABELS=new Map(MENU.map(item=>[item,[item.name,...item.aliases].map(l
   return {joined:preparePhonetic(words.join("")),words:words.map(preparePhonetic)};
 })]));
 export function closestMenuItems(text: string, count = 3, pool: MenuItem[] = MENU): MenuItem[] {
+  text=speechText(text).split(/\b(?:without|notes|note|no)\b/)[0];
   // Category evidence precedes phonetic retrieval. Never offer a bread as a
   // dessert or a drink as a curry just because its syllables happen to fit.
   if(pool===MENU){
@@ -682,7 +706,7 @@ export function closestMenuItems(text: string, count = 3, pool: MenuItem[] = MEN
       /\b(?:vindaloo|rogan josh|jalfrezi|curry|korma)\b/i.test(text)?["Handi Curry","Tikka Masala"]:undefined;
     if(category)pool=MENU.filter(item=>category.includes(item.category));
   }
-  const words=tokenize(text).filter(token=>!STOPWORDS.has(token)&&!(token in NUM_WORDS)&&!PORTION_WORDS[token]);
+  const words=tokenize(text).filter(token=>!STOPWORDS.has(token)&&!(token in NUM_WORDS)&&!PORTION_WORDS[token]&&!["okay","ok","but","hello","tell","which","available","items","dishes"].includes(token));
   const protein=extractVariantHints(text).protein;
   const distinctive=words.filter(word=>!PROTEIN_WORDS[word]&&!["fish","shrimp","mutton"].includes(word));
   const heard=distinctive.length?distinctive:words;

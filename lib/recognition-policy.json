@@ -1,5 +1,6 @@
 {
   "sttNumbers": { "to": 2, "too": 2, "for": 4, "fore": 4, "tree": 3, "won": 1, "wun": 1, "ate": 8 },
+  "karahiMishearingsAfterProtein": ["cry", "crying", "krahi", "rahi"],
   "distinctiveTokens": {
     "gulab": ["GULAB_JAMUN"],
     "falooda": ["FALOODA_ICE_CREAM"],

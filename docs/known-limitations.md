@@ -37,7 +37,11 @@ The synthetic builds used the same thirty public inputs per configuration with r
 | `973f8b2`, export (3), `baseline+adaptive1100` | Owner real mic / Nova-3 multi / Aura-2 | 5/7 logged rows | 4/7 | 5.601 / 9.710 |
 | `973f8b2`, export (4), `baseline+adaptive1100` | Owner real mic / Nova-3 multi / Aura-2 | 18/20 logged rows | 13/20 | 1.836 / 7.605 |
 | `973f8b2`, export (5), `baseline+adaptive1100` | Owner real mic / Nova-3 multi / Aura-2 | 14/15 logged rows | 13/15 | 3.539 / 8.076 |
-| Current checkout/category revision | All three configs | No live measurement yet | Not measured | Not measured |
+| `973f8b2`, en-IN export (5), `baseline+adaptive800` | Owner real mic / Nova-3 en-IN / Aura-2 | 7/9 logged rows | 6/9 | 1.605 / 14.926 |
+| `973f8b2`, en-IN export (6), `baseline+adaptive800` | Owner real mic / Nova-3 en-IN / Aura-2 | 13/17 logged rows | 11/17 | 2.664 / 7.677 |
+| `973f8b2`, en-IN export (7), `baseline+adaptive800` | Owner real mic / Nova-3 en-IN / Aura-2 | 10/13 logged rows | 7/13 | 1.761 / 5.357 |
+| `973f8b2`, en-IN export (8), `baseline+adaptive800` | Owner real mic / Nova-3 en-IN / Aura-2 | 6/7 logged rows | 3/7 | 1.792 / 6.928 |
+| Current question-consent revision | All three configs | No live measurement yet | Not measured | Not measured |
 
 Real-mic worst informative latency was **17.344 s**; three rows have no informative measurement, four report barge-in cuts. Old first transport-byte median 1.879 s includes neutral audio and is not the informative headline. The pasted page was a transient nineteen-measurement snapshot; the complete CSV has twenty. These values cannot be attributed to a newer build without a retest recording its commit/configuration.
 
@@ -50,6 +54,8 @@ The atomic trial is a retained regression: waiting for body completion caused lo
 Earlier static-cache load was 353 ms and total dev startup 6.84 s. Startup, build time and warm-turn latency are different. These are not promises for another laptop or host. Supporting reports: [menu/playback](menu-playback-followups.md), [action safety](action-safety.md). Raw caller CSVs remain private.
 
 ## Voice and deployment
+
+The four en-IN exports identify `973f8b2` with **dirty=true**, so their exact tested code cannot be recovered or attributed to a clean commit. Their 46 rows contain 36 informative arrivals and 27 finished replies. A retained proposal could consume yes after a different question, and an alleged-request denial could add a dish. [Question-bound consent and read-only intent fixes](four-enin-action-safety.md) address those patterns. Menu data does not define serving counts. Severely garbled speech and new microphone performance remain unresolved/unmeasured.
 
 The three `973f8b2` exports have 42 logged rows, 37 informative arrivals and 30 finished replies; partial/failed playback can still have an informative timestamp. Completion, category/nuggets and removal failures are addressed in the [three-call follow-up](three-call-checkout-followups.md). Clean confirmations cannot merge into the next order, but garbled mixed-language finals still require clarification. The new build's latency and real-mic cutoff rate are unmeasured.
 

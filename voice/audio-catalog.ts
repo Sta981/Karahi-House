@@ -12,6 +12,7 @@ export const FIXED_PHRASES=[
  {id:"ack_ok",text:"Okay. "},{id:"ack_got",text:"Got it. "},
  {id:"stall",text:"One moment. "},
  {id:"failure",text:"I'm having trouble speaking. Please check the text reply."},
+ ...["Your current subtotal is ","I can't verify serving sizes. Staff can advise.","Which style or protein would you like?","from "," for "].map((text,index)=>({id:`answer_scope_${index}`,text})),
  {id:"added",text:"Added "},{id:"removed",text:"Removed "},{id:"noted",text:"Noted. "},
  {id:"fallback",text:"Could you say that again? You can order or ask about the menu."},
  {id:"menu_fallback",text:`${MENU_FALLBACK} ${CATEGORY_LIST}`},{id:"categories",text:CATEGORY_LIST},

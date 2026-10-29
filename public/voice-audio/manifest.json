@@ -1,6 +1,6 @@
 {
   "kind": "fixed-synthetic-menu-templates-only",
-  "identity": "6ce582fe511b700c552f6ce48ecff1535df87a14629466bbe28e7662114755d8",
+  "identity": "bd484515df6233a7c44ad6c7dc0ac8039095a5aa21b48ed95a666e5c335ce67a",
   "voice": "aura-2-thalia-en:linear16:24000:v2",
   "sampleRate": 24000,
   "entries": [
@@ -87,6 +87,41 @@
       "file": "8ab91adfd2848af8b58cf842568ea5fb7784ec4f5b113914b039d961a66bd537.pcm",
       "bytes": 153600,
       "sha256": "7ba635ecca46d2a78213a50793e2094ffc7a7d58a7ede4542cac663fae3ba70b"
+    },
+    {
+      "id": "answer_scope_0",
+      "text": "Your current subtotal is ",
+      "file": "caa6afd9c2ec538125e2009da8fb7e7927d8b1404a39179af24fc82af101902a.pcm",
+      "bytes": 69120,
+      "sha256": "6106738f2ee2086d2e7d7cceac8359385b0091b382c724cab57e85b63e3dee59"
+    },
+    {
+      "id": "answer_scope_1",
+      "text": "I can't verify serving sizes. Staff can advise.",
+      "file": "c039f03570783ff021275671622ee6abed8710ce48a52a402cd9eb9ef67edadf.pcm",
+      "bytes": 172800,
+      "sha256": "e716caf453ad42c5d3b99cb0e4141456144fe00608c41d1d0b741cf0ea67ae56"
+    },
+    {
+      "id": "answer_scope_2",
+      "text": "Which style or protein would you like?",
+      "file": "65c6177e18d7d3cedd8f0687fac06a104577623e1b7efb7b8d6d01b6cbf8a79e.pcm",
+      "bytes": 109440,
+      "sha256": "7580bd90af74e80e246013bf501145215c53d65bfca34a9d973a536b70774d8a"
+    },
+    {
+      "id": "answer_scope_3",
+      "text": "from ",
+      "file": "488ec04294802bc7756c6672d74688ef9a072ea791d45b3eac7d8f2de313004e.pcm",
+      "bytes": 30720,
+      "sha256": "a136bbddb33f00dcbebde93cc3821a58e9d127864eab3b3ee1e04aad50ff095e"
+    },
+    {
+      "id": "answer_scope_4",
+      "text": " for ",
+      "file": "bf16b4f412e4a87e97b2718f2a80bdf273258c3c1510629be28cdbc6d794ca67.pcm",
+      "bytes": 28800,
+      "sha256": "5da4d4044ef232f3fb7190013602e70f7a6dfe8a460764963f50ec34591bbdea"
     },
     {
       "id": "added",

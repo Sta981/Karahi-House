@@ -2,7 +2,8 @@ import type { CartLine, DialogState } from "./dialog";
 import { hasCorrectionMarkers, isRemovalCommand } from "./order-operations";
 import { MENU, MODIFIERS } from "./menu";
 import {isCompletionSignal,isNoMoreAnswer,preparationTimeQuestion} from "./closing";
-import {recipientPreference} from "./menu-browsing";
+import {recipientPreference,menuBrowsing} from "./menu-browsing";
+import {canAcceptRecognition,recognitionConsent} from "./answer-scope";
 const CANONICAL_ORDER_NAMES=MENU.flatMap(item=>[item.name,item.website_name].filter((name):name is string=>!!name).map(name=>name.toLowerCase()));
 
 export type TurnIntent = "add_order" | "correction" | "removal" | "question" | "complaint" | "confirm" | "done" | "chitchat";
@@ -24,16 +25,19 @@ export const desiredTotal = (text: string): number | undefined => {
 export function classifyTurn(state: DialogState, raw: string): IntentDecision {
   const text = raw.trim();
   const choose = (intent: TurnIntent, reason: string): IntentDecision => ({ intent, reason });
-  const cartConcern = /\b(?:why|you (?:have )?added|you put|you charged|you did|didn'?t|did not|wrong|mistake|too many|i (?:already )?(?:said|ordered|asked for))\b/i.test(text);
+  const cartConcern = /\b(?:why|you (?:have )?added|you put|you charged|you did|didn'?t|did not|wrong|mistake|too many|i (?:already )?(?:said|ordered|asked for|(?:ask|asked|told) you to))\b/i.test(text);
   const explicitFix = /\b(?:please\s+)?(?:remove|delete|change|replace|make it|make that|set|reduce)\b/i.test(text);
+  if(/\b(?:i|we)\s+(?:don'?t|do not|didn'?t|did not|never|haven'?t|have not)\s+(?:ask|asked|request|requested|order|ordered|want|wanted|tell|told)\b/i.test(text))return choose("complaint","denial of an alleged request is read-only");
   if(/\b(?:don't|do not|never)\s+(?:add|order|include|give|bring)\b/i.test(text))return choose("complaint","negated addition is read-only");
+  if(menuBrowsing(text,state.browsing))return choose("question","menu browsing is read-only");
+  if(canAcceptRecognition(state)&&recognitionConsent(text))return choose(state.recognition?.replacement?"correction":"add_order","consent scoped to the current proposal");
   if(recipientPreference(text))return choose("question","ask a food preference without inventing a dish");
   if(/^(?:don't|do not|isn't|aren't|haven't)\s+(?:you|there|it)\b/i.test(text))return choose("question","negative question is not an order");
   if (cartConcern && !explicitFix && desiredTotal(text) === undefined) return choose("complaint", "cart concern is read-only");
   if (/^(?:why|how come)\b/i.test(text) && desiredTotal(text) === undefined && !/\b(?:please remove|please change|please set)\b/i.test(text)) return choose("complaint", "explanation requested");
   if (/\b(?:what(?:'s| is)?|how much|how many|how long|do you|does it|is there|are there|is .*in (?:my|the) (?:cart|order)|already have|in (?:that|the|my) cart|cart section|in my order|show (?:me )?(?:my|the) (?:cart|order))\b/i.test(text) &&
-      !/^(?:add|remove|delete|replace|change|make|set|i want|i need|can i (?:get|have)|could i (?:get|have))\b/i.test(text)) return choose("question", "information requested");
-  if(/^(?:is|are|was|were|does|did|will|would|could|can|do (?:you|we|they|i))\b/i.test(text)&&!/^(?:can|could|would) (?:i (?:get|have)|you (?:add|give|bring|get|remove|change|make))\b/i.test(text))return choose("question","question form");
+      !/^(?:add|remove|delete|replace|change|make|set|i want|i need|can i (?:get|have|order)|could i (?:get|have|order))\b/i.test(text)) return choose("question", "information requested");
+  if(/^(?:is|are|was|were|does|did|will|would|could|can|do (?:you|we|they|i))\b/i.test(text)&&!/^(?:can|could|would) (?:i (?:get|have|order)|you (?:please |just )*(?:add|give|bring|get|remove|delete|change|make))\b/i.test(text))return choose("question","question form");
   if (state.removalQuantity || state.removalConfirmation || state.pendingCorrection?.segment.action === "remove") return choose("removal", "answer bound to pending removal");
   if(state.categoryOrder&&(/^(?:yes|yeah|yep|haan|no|nope|cancel)(?: please)?[.!]?$/i.test(text)||/^(?:one|two|three|four|five|\d+)(?:\s+of)?\s+each(?:\s+please)?[.!]?$/i.test(text)))return choose(/^no|^cancel/i.test(text)?"confirm":"add_order","explicit pending category answer");
   if(preparationTimeQuestion(text))return choose("question","preparation-time question is read-only");
@@ -48,7 +52,7 @@ export function classifyTurn(state: DialogState, raw: string): IntentDecision {
   }
   if (FINITE.test(text)) {
     if (/^(?:no|nope|nah|nahi)[.!]?$/i.test(text) && !state.recognition && !state.pending && state.phase === "open") return choose("done", "no more items");
-    if (state.recognition && !/^(?:no|nope|nah|nahi)/i.test(text)) return choose(state.recognition.replacement ? "correction" : "add_order", "explicit acceptance of proposed item");
+    if (canAcceptRecognition(state) && !/^(?:no|nope|nah|nahi)/i.test(text)) return choose(state.recognition!.replacement ? "correction" : "add_order", "explicit acceptance of current proposed item");
     if (state.answerConfirmation?.kind === "size") return choose("add_order", "accepted pending size");
     if (state.answerConfirmation?.kind === "spice") return choose("correction", "accepted modifier");
     return choose("confirm", "finite confirmation");

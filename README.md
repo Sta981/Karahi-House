@@ -70,12 +70,18 @@ Headline: speech end → first **informative playback**, excluding neutral ackno
 | `973f8b2`, owner export (3), `adaptive1100` | Nova-3 multi / Aura-2 | 5/7 logged rows | 5.601 / 9.710 s |
 | `973f8b2`, owner export (4), `adaptive1100` | Nova-3 multi / Aura-2 | 18/20 logged rows | 1.836 / 7.605 s |
 | `973f8b2`, owner export (5), `adaptive1100` | Nova-3 multi / Aura-2 | 14/15 logged rows | 3.539 / 8.076 s |
+| `973f8b2` + dirty, en-IN export (5), `adaptive800` | Nova-3 en-IN / Aura-2 | 7/9 logged rows | 1.605 / 14.926 s |
+| `973f8b2` + dirty, en-IN export (6), `adaptive800` | Nova-3 en-IN / Aura-2 | 13/17 logged rows | 2.664 / 7.677 s |
+| `973f8b2` + dirty, en-IN export (7), `adaptive800` | Nova-3 en-IN / Aura-2 | 10/13 logged rows | 1.761 / 5.357 s |
+| `973f8b2` + dirty, en-IN export (8), `adaptive800` | Nova-3 en-IN / Aura-2 | 6/7 logged rows | 1.792 / 6.928 s |
 
 The earlier real-mic worst informative delay was **17.344 s**, with 15/23 finished replies. The seventeen-row `a3102c4` export has 15/17 finished, zero barge-in cuts and a 6.734 s worst informative delay; one row has a conflicting `no_audio` status despite an informative timestamp. The eleven-row `318a3d3` export has 9/11 finished and zero barge-in cuts; completion phrases failed in that build. These are different utterances/sample sizes, not a controlled before/after accuracy test. The synthetic run finished 30/30 per configuration, with slow dynamic replies remaining. Failed/regressed trials remain in [known limitations](docs/known-limitations.md). The new Roman-display/closing revision awaits its own real-mic retest.
 
 The earlier multilingual exports finished 9/11 and 1/7 replies. The second has five missing informative timings, so its two measured arrivals are not a successful latency result. The three `973f8b2` exports finished 4/7, 13/20 and 13/15 replies. [Their analysis](docs/three-call-checkout-followups.md) covers completion routing, category orders, nuggets, removal and answer boundaries. New checkout/category real-mic performance is unmeasured.
 
-The page and each turn/mishearing CSV row identify commit, dirty status, STT, endpoint settings and TTS. Defaults: complete Flux 750 ms, Nova multi 1100 ms, en-IN 800 ms; uncertain 900 ms, unfinished 1600 ms, finite answers 600 ms. Provider endpointing adds time. Barge-in uses 480 ms sustained speech plus energy/echo checks; Ignore interruptions is available. All 343 fixed synthetic clips are pre-rendered, including checkout/category/removal recovery and integer-price fragments. Dynamic misses still depend on the provider, with a six-second whole-reply synthesis deadline and cached failure notice. Engine speculation is off.
+The four en-IN exports finished 6/9, 11/17, 7/13 and 3/7 replies. All identify `973f8b2` with dirty=true, so their exact code revision cannot be recovered. [Their review](docs/four-enin-action-safety.md) fixes consent after information questions, read-only denials, protein browsing, quantity removal and overlapping restatements. New real-mic behavior and latency remain unmeasured.
+
+The page and each turn/mishearing CSV row identify commit, dirty status, STT, endpoint settings and TTS. Defaults: complete Flux 750 ms, Nova multi 1100 ms, en-IN 800 ms; uncertain 900 ms, unfinished 1600 ms, finite answers 600 ms. Provider endpointing adds time. Barge-in uses 480 ms sustained speech plus energy/echo checks; Ignore interruptions is available. All 348 fixed synthetic clips are pre-rendered, including checkout/category/removal recovery, subtotal/serving-size replies and integer-price fragments. Dynamic misses still depend on the provider, with a six-second whole-reply synthesis deadline and cached failure notice. Engine speculation is off.
 
 ## Checks excluding held-out evaluation
 
@@ -93,7 +99,7 @@ npm run check:privacy
 npm run build
 ```
 
-Current validation passes 232 selected checks: 53 engine, 84 live/pattern, 74 voice, 5 publication, 8 notification, 1 scripted walkthrough and 7 development-cache checks. Notification checks use mock transport. The full local development checkout also supports `npm run test:engine`; some baseline-integrity checks need local evaluation artifacts intentionally excluded from the public snapshot. Development tests are not held-out or accent accuracy. Held-out files/grading rules are excluded from this checklist. Burned cases remain regression-only. The Groq segmenter comparison was skipped; local parsing remains default.
+Current validation passes 251 selected checks: 53 engine, 100 live/pattern, 77 voice, 5 publication, 8 notification, 1 scripted walkthrough and 7 development-cache checks. Notification checks use mock transport. The full local development checkout also supports `npm run test:engine`; some baseline-integrity checks need local evaluation artifacts intentionally excluded from the public snapshot. Development tests are not held-out or accent accuracy. Held-out files/grading rules are excluded from this checklist. Burned cases remain regression-only. The Groq segmenter comparison was skipped; local parsing remains default.
 
 Use the [thirty-turn real-mic script](docs/real-mic-script.md) and [blank sheet](docs/real-mic-results-template.csv) for all three STT configs. Export before resetting. Enter intended words for mishearings; aliases need manual review. `npm run voice:analyze -- 'path-to-export.csv' --require-commit FULL_COMMIT_HASH` excludes other/dirty builds. Explicit provider benchmarks consume credits; offline checks above do not.
 

@@ -85,7 +85,9 @@ export const SPEECH_DEV_CASES=[
  n(30,"full beef shinwari karahi medium spice",[L("BEEF_SHINWARI_KARAHI",1,"Full",M)]),
  n(31,"goat white karahi spicy",[],"size"),
  n(32,"fish tikka masala hot please",[L("FISH_TIKKA_MASALA")],"spice"),
- n(33,"do you have goat vindaloo",[],"item","unavailable"),
+ // Availability questions are read-only: disclose unavailable, but never
+ // create an order proposal that a later yes could accept accidentally.
+ n(33,"do you have goat vindaloo",[],null,"ignore",{replyIncludes:["don't have that dish"]}),
  n(34,"can i order chicken jalfrezi please",[],"item","unavailable"),
  n(35,"um chicken shynwari karahi",[],"item","clarify"),
  n(36,"rice and chicken biryani please and mango lassi",[L(rice),L("CHICKEN_BIRYANI"),L(mango)],"spice"),

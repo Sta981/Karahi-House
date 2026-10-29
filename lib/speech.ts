@@ -6,7 +6,7 @@ const PLURALS: Record<string,string> = {
   naans:"naan",nans:"nan",rotis:"roti",pakoras:"pakora",pakodas:"pakoda",
   kababs:"kabab",kebabs:"kebab",kabobs:"kabob",cabobs:"cabob",sodas:"soda",
   lassis:"lassi",lasis:"lasi",samosas:"samosa",samosay:"samosa",botis:"boti",
-  papadams:"papadam",papadums:"papadum",papads:"papad",
+  papadams:"papadam",papadums:"papadum",papads:"papad",burgers:"burger",
 };
 const FILLERS = new Set(["um","uh","erm","umm","uhh","please","plz","sir","brother","bro","yaar","bhai","jaan","packing","parcel","takeout","regular","chahiye","dena","dein","deejiye","dijiye","deyo","deo","diyo","dyo","chahida","chahide","wali","wala"]);
 const FLAVORS=[...new Set(MENU.filter(item=>/lassi$/i.test(item.name)).map(item=>item.name.toLowerCase().split(" ")[0]))];

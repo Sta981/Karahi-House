@@ -23,10 +23,15 @@ export function browseKey(text:string):string|undefined{
  if(/\b(?:starters?|appetizers?|appetisers?)\b/.test(heard))return "starters";
  if(/\b(?:bbq|barbecue|barbeque|grill(?:ed)?)\b/.test(heard))return "bbq";
  if(/\b(?:veg|veggie|vegetarian|vegetables?)\b/.test(heard))return "vegetarian";
+ const protein=heard.match(/\b(chicken|lamb|goat|beef|fish|shrimp|paneer)\b/)?.[1];
+ if(protein&&/\b(?:dishes|meals|items|choices|options|menu|something|anything)\b/.test(heard))return `protein:${protein}`;
  const category=MENU_CATEGORIES.find(category=>heard.includes(category.toLowerCase()));
  return category?`category:${category}`:undefined;
 }
-export function browsePool(key:string):MenuItem[]{return MENU.filter(groups[key]??(item=>item.category===key.slice(9)));}
+export function browsePool(key:string):MenuItem[]{
+ if(key.startsWith("protein:")){const protein=key.slice(8);return MENU.filter(item=>item.protein?.toLowerCase()===protein||new RegExp(`^${protein}\\b`,"i").test(item.name));}
+ return MENU.filter(groups[key]??(item=>item.category===key.slice(9)));
+}
 export function categoryOrderRequest(text:string):{key:string;items:MenuItem[];qtyText?:string;mixed?:boolean}|undefined{
  if(!/\b(?:add|i want|i need|i would like)\b/i.test(text)||! /\b(?:all|every|each)\b/i.test(text)||! /\b(?:section|sections|category|categories|dishes|items)\b/i.test(text))return;
  const key=browseKey(text);if(!key)return;const items=browsePool(key);if(!items.length)return;
@@ -51,13 +56,14 @@ export function menuBrowsing(text:string,previous?:BrowseState):{reply:string;br
   if(previous.key==="menu")return {reply:`${CATEGORY_LIST} Which category would you like?`,browsing:previous};
   const page=browsePage(previous.key,previous.offset);return {reply:page.reply,browsing:page.next};
  }
- const frame=/\b(?:what (?:do you|you) have|what(?:'s| is) on|show|list|menu|options|choices|anything|something|recommend|do you (?:serve|have)|tell me about)\b/.test(heard);
+ const frame=/\b(?:what (?:do you|you) have|what(?:'s| is) on|show|list|menu|options|choices|anything|something|recommend|do you (?:serve|have)|tell me about)\b/.test(heard)||/\b(?:dishes|meals|items)\b.*\b(?:available|tell me|running)\b|\b(?:which|what|tell me)\b.*\b(?:dishes|meals|items)\b|\brunning items\b/.test(heard);
  // Bare full item names retain their ordering meaning. Bare category names
  // with no canonical item of that name can still browse.
  const bare=/^(?:desserts?|deserts?|sweets?|mithai|beverages?|drinks?|cold drinks?|breads?|naan|kids|starters?|bbq|veg|vegetarian)[.!?]*$/.test(heard)||!!previous&&/^rice[.!?]*$/.test(heard);
  if(!frame&&!bare)return;
- const key=browseKey(heard);
+ const lookup=frame?heard.replace(/\b(in|with|of) (?:lamp|lamps)\b/g,"$1 lamb"):heard;
+ const key=browseKey(lookup);
  if(key){const page=browsePage(key);return {reply:page.reply,browsing:page.next};}
- if(/\b(?:full|whole|entire|on the|your) menu\b|^menu[.!?]*$|^what (?:do you|you) have[.!?]*$/.test(heard))return {reply:CATEGORY_LIST,browsing:{key:"menu",offset:0}};
+ if(/\b(?:full|whole|entire|on the|your) menu\b|^menu[.!?]*$|^what (?:do you|you) have[.!?]*$|\b(?:running items|items (?:are )?running)\b/.test(heard))return {reply:CATEGORY_LIST,browsing:{key:"menu",offset:0}};
  if(/\b(?:menu|what (?:do you|you) have|options|choices)\b/.test(heard))return {reply:`${MENU_FALLBACK} ${CATEGORY_LIST}`,garbled:true};
 }

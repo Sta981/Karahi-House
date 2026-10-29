@@ -1,5 +1,5 @@
 import { MENU } from "./menu";
-import { Match, RecognitionAnalysis, RecognitionIssue, analyzeUtterance, extractQuantityHint, extractVariantHints } from "./matcher";
+import { Match, RecognitionAnalysis, RecognitionIssue, analyzeUtterance, extractQuantityHint, extractVariantHints,itemAdjacentQuantity } from "./matcher";
 import { speechText, speechTokens } from "./speech";
 import { similarity } from "./phonetic";
 const MENU_BY_ID = new Map(MENU.map(item => [item.id, item]));
@@ -13,7 +13,9 @@ export interface RemovalQuantityChoice { itemId:string; key:string; available:nu
 export interface CorrectionPlan { segments:OrderSegment[]; entries:OrderEntry[]; issues:RecognitionIssue[]; question?:string; changed:Match[]; replaceIndex?:number; blockedSegment?:OrderSegment; removalQuantity?:RemovalQuantityChoice }
 export const orderEntryKey=(entry:OrderEntry)=>JSON.stringify([entry.itemId,entry.portion??null,entry.spiceLevel??null,[...(entry.notes??[])].sort()]);
 export function removalAmount(text:string,available:number):{qty?:number;invalid?:boolean}{
-  const quantity=extractQuantityHint(text),all=/\b(?:all|everything|whole order|entire order)\b/i.test(text),both=/\bboth\b/i.test(text);
+  const repair=itemAdjacentQuantity(text);
+  const explicit=extractQuantityHint(text);if(explicit!==undefined&&repair!==undefined&&explicit!==repair)return {invalid:true};
+  const quantity=explicit??repair,all=/\b(?:all|everything|whole order|entire order)\b/i.test(text),both=/\bboth\b/i.test(text);
   if(both&&(available!==2||quantity!==undefined&&quantity!==2))return {invalid:true};
   if(all&&quantity!==undefined&&quantity!==available)return {invalid:true};
   const qty=all?available:both?2:quantity;
@@ -75,7 +77,7 @@ export function targetIndexes(entries:OrderEntry[],text:string):number[]{
   if(/\bhot\b/i.test(text))return [];
   const spice=/\bextra spicy\b/i.test(text)?"Extra Spicy":/\bmild\b/i.test(text)?"Mild Spice":/\bmedium\b/i.test(text)?"Medium Spice":/\bspicy\b/i.test(text)?"Spicy":undefined;
   const portion=extractVariantHints(text).portion;
-  const words=speechTokens(note?text.slice(0,text.indexOf(note)):text).filter(word=>!["the","a","an","it","that","last","one","two","three","four","five","six","seven","eight","nine","ten","ek","aik","ik","ikk","do","teen","tinn","chaar","char","paanch","panj","all","both","of","them","make","to","hi","now","lead","name","please","item","dish","spice","mild","medium","extra","spicy","half","full","only","just","i","wanted","want","need","is","enough","quantity","total"].includes(word)&&!/^\d+$/.test(word));
+  const words=speechTokens(note?text.slice(0,text.indexOf(note)):text).filter(word=>!["the","a","an","it","that","last","one","two","three","four","five","six","seven","eight","nine","ten","ek","aik","ik","ikk","do","teen","tinn","chaar","char","paanch","panj","all","both","of","them","make","to","too","for","fore","tree","hi","now","lead","name","please","item","dish","spice","mild","medium","extra","spicy","half","full","only","just","i","wanted","want","need","is","enough","quantity","total"].includes(word)&&!/^\d+$/.test(word));
   if(!words.length)return /\b(?:it|that|last)\b/i.test(text)&&entries.length?[entries.length-1]:[];
   const ranked=entries.map((entry,index)=>({index,score:matchingNotes&&!matchingNotes.has(index)||spice&&entry.spiceLevel!==spice||portion&&entry.portion!==portion?0:Math.max(...TARGET_LABELS.get(entry.itemId)!.map(tokens=>words.reduce((score,word)=>{
     const best=Math.max(0,...tokens.map(token=>token===word?1:similarity(word,token)>=.86?.8:0));return score+best;
