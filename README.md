@@ -1,91 +1,165 @@
-# Karahi House voice-agent demo
+# Karahi House — Voice AI Ordering Assistant
 
-A browser pickup-order demo for Karahi House, **1409 Polk Street, San Francisco**. The menu is approved by the restaurant. Orders remain **DEMO, simulated, pending staff acceptance**. No restaurant phone line, payment collection, delivery ordering, live transfer or POS is connected.
+A browser-based voice ordering demo for **Karahi House**, 1409 Polk Street, San Francisco. The project explores how a voice agent can understand food orders, handle menu questions, clarify ambiguous requests, and build a pickup ticket—while making order changes explicit and reviewable.
 
-Start with the [five-minute client script](docs/demo-script.md), [known limitations/measured results](docs/known-limitations.md), and [ticket delivery/storage](docs/ticket-delivery.md). No measured multi-speaker accent accuracy or perfect real-world order accuracy is claimed.
+The system is designed to test speech recognition across different English configurations and small English/Hindi mixed-language orders. **Accent accuracy has not been independently established**: there is no scored multi-speaker accent dataset, and synthetic speech results are not evidence of real-world accent performance.
+
+> **Demo status:** Orders are simulated and remain `DEMO` / `pending_acceptance`. The application is not connected to the restaurant's phone line, POS, payment system, delivery service, or staff workflow. Nothing is submitted to the restaurant.
+
+## The problem
+
+Voice ordering is more than speech-to-text. A useful ordering assistant must distinguish between a new item, a quantity correction, a removal, a menu question, and a request for clarification. A misheard dish or number can become a wrong order if recognized text is allowed to change the cart without checks.
+
+This project addresses that problem with two separate responsibilities:
+
+- **Speech layer:** transcribes the caller's speech and speaks the agent's response.
+- **Order layer:** applies local menu knowledge, validates the requested action, asks for missing choices, and discloses cart changes.
+
+The separation matters: a fluent voice response is not proof that the underlying order is correct.
+
+## What the demo does
+
+- Streams microphone audio from a browser to a local voice server.
+- Supports Deepgram STT configurations: Flux English, Nova-3 multilingual, and Nova-3 Indian English.
+- Uses **Aura-2 Thalia** for default speech generation, with Kokoro available as an explicit alternative.
+- Answers menu questions from the local approved menu data.
+- Handles item quantities, size and spice choices, notes, removals, and pickup names.
+- Asks for clarification when a dish, protein, size, spice, or removal target is ambiguous.
+- Uses shared intent permissions and a semantic cart diff so questions and complaints cannot silently mutate an order.
+- Reads back the complete order and subtotal before creating a demo ticket.
+- Shows the ticket in the browser and allows a redacted JSON download.
+- Can optionally email a redacted demo ticket to one configured owner test inbox through Resend. The SMS preview is simulated and is **not sent**.
+
+The current multilingual path uses a small explicit vocabulary for common ordering phrases. Romanized transcript display is a presentation feature; it does not translate speech or improve the underlying speech recognizer. Full Urdu/Punjabi conversation support is not implemented.
+
+## How it works
+
+```text
+Browser microphone
+       |
+       v
+AudioWorklet capture
+       |
+       v
+WebSocket voice server
+       |
+       v
+Deepgram speech-to-text
+       |
+       v
+Local recognition + order engine
+       |
+       +--> Menu lookup and clarification
+       |
+       +--> Intent authorization + cart validation
+       |
+       v
+Response generation
+       |
+       v
+Aura-2 Thalia text-to-speech
+       |
+       v
+Browser audio playback
+       |
+       v
+Read-back confirmation -> DEMO ticket
+```
+
+### Order safety and checkout
+
+The order engine uses local menu facts for item names, quantities, sizes, spice levels, prices, and subtotal calculations. It does not treat every recognized phrase as permission to edit the cart.
+
+- Questions and complaints are read-only.
+- A removal request cannot become an addition.
+- Ambiguous removals ask how many items to remove.
+- Cart changes are summarized from the before/after state.
+- A changed cart requires a fresh read-back.
+- In streaming voice, the agent asks **“Anything else?”** after the complete read-back. A no-more answer confirms that read-back; “yes” resumes ordering.
+- The resulting ticket remains pending staff acceptance.
+
+The legacy text flow has a separate confirmation mode and still asks “Is that correct?” before accepting a yes.
+
+## Technology
+
+| Area | Implementation |
+|---|---|
+| Application | Next.js 15, React 19, TypeScript |
+| Speech-to-text | Deepgram Flux / Nova-3 |
+| Text-to-speech | Deepgram Aura-2 Thalia |
+| Voice transport | Browser AudioWorklet and WebSocket |
+| Order processing | Local TypeScript recognition and order engine |
+| Mixed-script display | Sanscript transliteration |
+| Optional email | Resend |
+| Testing | Node test runner, TypeScript/tsx, Playwright |
+
+Vapi and Twilio are not used for the active voice pipeline. The FAQ LLM is disabled by default; adding API keys alone does not enable it.
 
 ## Run locally
 
-```sh
+### Requirements
+
+- Node.js and npm
+- Chrome or Edge with microphone access
+- A Deepgram API key
+
+### 1. Install dependencies
+
+```bash
 npm install
 ```
 
-For a fresh public clone, set local Git exclusions using the [publication workflow](docs/github-workflow.md) before adding credentials; hidden exclusion files are not shipped. Copy visible `env.example` to private `.env.local` and add values locally. Default streaming voice needs only `DEEPGRAM_API_KEY`.
+### 2. Configure environment variables
 
-```sh
+Copy the public example file to a private local environment file:
+
+**macOS / Linux**
+```bash
+cp env.example .env.local
+```
+
+**Windows PowerShell**
+```powershell
+Copy-Item env.example .env.local
+```
+
+Add your Deepgram key to `.env.local`:
+
+```dotenv
+DEEPGRAM_API_KEY=your_deepgram_api_key
+```
+
+Do not commit `.env.local`, expose server keys through `NEXT_PUBLIC_` variables, or paste credentials into issues or chat.
+
+### 3. Check the environment and start the voice server
+
+```bash
 npm run check:env
 npm run dev:voice
 ```
 
-Open <http://127.0.0.1:3000/voice> in Chrome/Edge and allow the microphone. Select Flux English, Nova-3 multilingual or Nova-3 Indian English; no accent-model winner is established. Use headphones. One session, ten-minute cap. `npm run dev` serves text/legacy browser speech; streaming WebSocket voice requires `dev:voice`.
+Open [http://127.0.0.1:3000/voice](http://127.0.0.1:3000/voice), allow microphone access, and use headphones.
 
-For the voice demo, **`npm run dev:voice` is the only startup command**: one server, port **3000** by default, one cache **`.next-dev-voice`**. Startup prints `3000 -> <full commit hash>` with a dirty marker for uncommitted changes. It does not pick an alternate port. A second invocation exits without touching the running cache. To reset generated development caches, stop the server with **Ctrl+C**, run **`npm run clean`**, then start `npm run dev:voice` again. Cleanup removes only the project's top-level `.next-dev-*` directories and refuses while a managed development server is running. Production `.next`, credentials and private data remain in place.
+**Use `npm run dev:voice` for the streaming voice demo.** The ordinary `npm run dev` command serves the text/legacy browser-speech experience; it does not start the same streaming WebSocket voice pipeline.
 
-Pipeline: browser mic/AudioWorklet → WebSocket → Deepgram → local order engine → **Aura-2 Thalia** → browser playback. Vapi/Twilio are unused. Kokoro is an explicit alternative; measured laptop CPU performance was too slow for the target. FAQ LLM defaults off; keys alone do not enable it. Keep server credentials out of chat/source and `NEXT_PUBLIC_` variables.
+The voice server uses port 3000 by default and a dedicated `.next-dev-voice` cache. It does not silently select another port. To reset generated development caches, stop the server with Ctrl+C and run:
 
-## After read-back confirmation
-
-In streaming voice, “done”, “it's over” or “yahi order hai” starts checkout. The engine collects missing sizes/spice and the pickup name, reads back the complete order/subtotal, then asks **“Anything else?”**. “Yes” continues ordering; “no/enough” after that current read-back creates a redacted ticket and plays the goodbye before releasing the microphone. A changed cart requires a new read-back. The legacy text demo still asks “Is that correct?” and requires yes.
-
-The ticket is `DEMO`, `pending_acceptance`, `staffAccepted: false`. The tab shows it and offers a JSON download. The server keeps only a bounded RAM copy (up to 100 tickets, thirty minutes, lost on restart), not a disk database.
-
-Optional private notification names:
-
-```dotenv
-DEMO_NOTIFICATIONS_ENABLED=
-RESEND_API_KEY=
-DEMO_NOTIFICATION_EMAIL=
+```bash
+npm run clean
+npm run dev:voice
 ```
 
-Set the enable flag explicitly to true when ready. Email goes only to the single configured **owner test inbox**, using Resend's fixed test sender. Use your Resend signup inbox ([official restriction](https://resend.com/docs/knowledge-base/403-error-resend-dev-domain)). The **simulated SMS** preview has `sent: false`; no carrier API is called. Missing configuration/failures are visible. Provider acceptance does not mean inbox delivery or restaurant acceptance. Actual inbox arrival remains to be checked after setup; tests use mocks. Nothing is sent to the restaurant.
+## Menu data
 
-Callback numbers are redacted. Tickets contain no audio, transcript/history or `transcriptHint`. Email runs alongside final voice speech; final text confirmation waits for its bounded attempt. A staff-acceptance workflow is still needed. See [delivery behavior and idempotency/retention limits](docs/ticket-delivery.md).
+The active menu source is `lib/menu-source.json`, imported from the restaurant-approved menu file. The repository documentation records 84 unique item IDs, 13 items with size choices, and 66 spice-enabled items. Prices are stored as integer cents.
 
-## Menu and local order facts
+`lib/menu.ts` is generated from the menu source; aliases are maintained separately. Older menus and third-party listings are not used as sources for new prices. The approved menu still flags six size surcharges as unverified, so the demo preserves that warning. Tax is not configured: displayed totals are subtotals, not tax-inclusive totals.
 
-`lib/menu-source.json`, supplied as `karahi_house_menu_final.json`, is the only active menu: **84 unique IDs, 13 sized items, 66 spice-enabled items, five spice options, integer cents for all 84 prices**. `lib/menu.ts` is generated; aliases are separate. Older menus/listings do not supply additions or prices. The approved file still flags six size surcharges unverified; tickets retain that warning.
+## Testing and evaluation
 
-Items, quantities, size, spice, notes, prices, subtotal and read-back come from local code. Whole-order spice waits until ordering finishes; per-dish overrides are supported. “Hot”, ambiguous names/proteins and close typos require clarification. Tax is not configured: the amount is a subtotal. Allergies need staff review. Weekly hours, inventory and actual prep time need confirmation; catering is inquiry-only.
+Run the portable checks from the project root:
 
-All transports share intent permissions and a semantic cart diff. Questions/complaints cannot mutate; removals cannot add. Committed changes are disclosed after reply rewrites. Validation covers 720 seeded turns and development patterns, not universal recognition accuracy. See [action-safety design](docs/action-safety.md).
-
-Removing a multi-quantity item without a count asks **one or both / one or all**; “yes” alone cannot delete the whole group. **Nova-3 multilingual (English/Hindi mix)** is now the initial selection for mixed-speech testing, not a measured accuracy winner. The page displays native-script STT in approximate Roman letters; the original redacted transcript remains separately available in CSV. Transliteration changes presentation, not what the recognizer heard. A small local vocabulary handles common numbers, size/spice answers, completion and removal phrases in Roman/native script. English-only STT cannot recover words it never transcribed; full Urdu/Punjabi speech is not supported by the current provider configuration. See [scope and real-mic retest](docs/code-switching.md).
-
-## Measured latency
-
-The latest [two-call mixed-language analysis](docs/multilingual-live-followups.md) identified list/clarification isolation, missing native words, correction ambiguity and provider trickle stalls. Clear quantity-delimited entries now resolve independently, with unresolved clauses/questions preserved. Existing-cart multi-item corrections ask add versus replace.
-
-Headline: speech end → first **informative playback**, excluding neutral acknowledgements. All rows below are **Lahore local**, not US-hosted. Synthetic speech does not establish human-accent performance.
-
-| Recorded build / input | STT | Informative n / attempted | p50 / p95 |
-|---|---|---:|---:|
-| `784ab85`, synthetic script / real providers | Flux English | 30/30 | 1.242 / 4.921 s |
-| `784ab85`, same script | Nova-3 multilingual | 30/30 | 1.453 / 7.343 s |
-| `784ab85`, same script | Nova-3 en-IN | 30/30 | 1.008 / 1.763 s |
-| Unknown earlier build, owner real mic, `adaptive1600` | Nova-3 en-IN | 20/23 logged turns | 4.354 / 8.250 s |
-| `a3102c4`, owner real mic, `adaptive800` | Nova-3 en-IN / Aura-2 | 17/17 logged turns | 2.496 / 6.734 s |
-| `318a3d3`, owner real mic, `adaptive800` | Nova-3 en-IN / Aura-2 | 11/11 logged turns | 2.900 / 3.713 s |
-| `bef1721`, first owner multilingual export, `adaptive1100` | Nova-3 multi / Aura-2 | 9/11 logged rows | 3.384 / 56.681 s |
-| `bef1721`, second owner multilingual export, `adaptive1100` | Nova-3 multi / Aura-2 | 2/7 logged rows | 3.299 / 4.802 s |
-| `973f8b2`, owner export (3), `adaptive1100` | Nova-3 multi / Aura-2 | 5/7 logged rows | 5.601 / 9.710 s |
-| `973f8b2`, owner export (4), `adaptive1100` | Nova-3 multi / Aura-2 | 18/20 logged rows | 1.836 / 7.605 s |
-| `973f8b2`, owner export (5), `adaptive1100` | Nova-3 multi / Aura-2 | 14/15 logged rows | 3.539 / 8.076 s |
-| `973f8b2` + dirty, en-IN export (5), `adaptive800` | Nova-3 en-IN / Aura-2 | 7/9 logged rows | 1.605 / 14.926 s |
-| `973f8b2` + dirty, en-IN export (6), `adaptive800` | Nova-3 en-IN / Aura-2 | 13/17 logged rows | 2.664 / 7.677 s |
-| `973f8b2` + dirty, en-IN export (7), `adaptive800` | Nova-3 en-IN / Aura-2 | 10/13 logged rows | 1.761 / 5.357 s |
-| `973f8b2` + dirty, en-IN export (8), `adaptive800` | Nova-3 en-IN / Aura-2 | 6/7 logged rows | 1.792 / 6.928 s |
-
-The earlier real-mic worst informative delay was **17.344 s**, with 15/23 finished replies. The seventeen-row `a3102c4` export has 15/17 finished, zero barge-in cuts and a 6.734 s worst informative delay; one row has a conflicting `no_audio` status despite an informative timestamp. The eleven-row `318a3d3` export has 9/11 finished and zero barge-in cuts; completion phrases failed in that build. These are different utterances/sample sizes, not a controlled before/after accuracy test. The synthetic run finished 30/30 per configuration, with slow dynamic replies remaining. Failed/regressed trials remain in [known limitations](docs/known-limitations.md). The new Roman-display/closing revision awaits its own real-mic retest.
-
-The earlier multilingual exports finished 9/11 and 1/7 replies. The second has five missing informative timings, so its two measured arrivals are not a successful latency result. The three `973f8b2` exports finished 4/7, 13/20 and 13/15 replies. [Their analysis](docs/three-call-checkout-followups.md) covers completion routing, category orders, nuggets, removal and answer boundaries. New checkout/category real-mic performance is unmeasured.
-
-The four en-IN exports finished 6/9, 11/17, 7/13 and 3/7 replies. All identify `973f8b2` with dirty=true, so their exact code revision cannot be recovered. [Their review](docs/four-enin-action-safety.md) fixes consent after information questions, read-only denials, protein browsing, quantity removal and overlapping restatements. New real-mic behavior and latency remain unmeasured.
-
-The page and each turn/mishearing CSV row identify commit, dirty status, STT, endpoint settings and TTS. Defaults: complete Flux 750 ms, Nova multi 1100 ms, en-IN 800 ms; uncertain 900 ms, unfinished 1600 ms, finite answers 600 ms. Provider endpointing adds time. Barge-in uses 480 ms sustained speech plus energy/echo checks; Ignore interruptions is available. All 348 fixed synthetic clips are pre-rendered, including checkout/category/removal recovery, subtotal/serving-size replies and integer-price fragments. Dynamic misses still depend on the provider, with a six-second whole-reply synthesis deadline and cached failure notice. Engine speculation is off.
-
-## Checks excluding held-out evaluation
-
-```sh
+```bash
 npm run menu:check
 npm run test:live
 npm run test:voice
@@ -99,14 +173,54 @@ npm run check:privacy
 npm run build
 ```
 
-Current validation passes 251 selected checks: 53 engine, 100 live/pattern, 77 voice, 5 publication, 8 notification, 1 scripted walkthrough and 7 development-cache checks. Notification checks use mock transport. The full local development checkout also supports `npm run test:engine`; some baseline-integrity checks need local evaluation artifacts intentionally excluded from the public snapshot. Development tests are not held-out or accent accuracy. Held-out files/grading rules are excluded from this checklist. Burned cases remain regression-only. The Groq segmenter comparison was skipped; local parsing remains default.
+For the local order-engine suite, run:
 
-Use the [thirty-turn real-mic script](docs/real-mic-script.md) and [blank sheet](docs/real-mic-results-template.csv) for all three STT configs. Export before resetting. Enter intended words for mishearings; aliases need manual review. `npm run voice:analyze -- 'path-to-export.csv' --require-commit FULL_COMMIT_HASH` excludes other/dirty builds. Explicit provider benchmarks consume credits; offline checks above do not.
+```bash
+npm run test:engine
+```
 
-## Privacy, hosting and publication
+The repository also includes a five-minute scripted walkthrough, real-microphone test instructions, CSV analysis utilities, and regression tests. See the linked documentation below for the exact scope of each test.
 
-`.env.local` and `/.data/` are ignored. Server audio/transcript persistence is disabled; enabling it refuses startup. Call state clears on disconnect; the separate redacted ticket cache has the lifetime above. CSVs, downloads and emails persist separately; delete consented evaluation exports within thirty days. Deepgram requests model-improvement opt-out; the application does not control every provider's retention.
+### What the measurements do—and do not—show
 
-The server binds to **127.0.0.1**, with no local password. Public/tunnel access requires `VOICE_DEMO_ACCESS_TOKEN`; set `VOICE_REQUIRE_ACCESS_TOKEN` before a tunnel hiding forwarding metadata. Public binding without a valid token refuses startup. No public deployment or US latency measurement exists; Render remains on hold.
+The project records speech-end-to-informative-playback latency separately from neutral acknowledgements. Historical synthetic tests used fixed inputs with real speech providers; owner-recorded microphone sessions used different utterances and small sample sizes.
 
-GitHub gets a filtered snapshot through `npm run github:push`: hidden files, secrets, private CSVs/replays, evaluation outputs and held-out material are excluded. See [publication workflow](docs/github-workflow.md). Production builds use `.next`; voice uses `.next-dev-voice`; browser fixtures and ordinary Next dev use their own `.next-dev-browser`/`.next-dev-web`. A build or fixture run therefore does not delete the voice demo's CSS/JavaScript. All root `.next*` paths and the generated `next-env.d.ts` are ignored; generated cache/type files do not belong in Git. Only one voice demo runs at a time. If `EADDRINUSE` appears, use the existing demo or stop that instance before restarting it. Audio interfaces can be replaced by Vapi, LiveKit or Pipecat later.
+These measurements are useful for debugging endpointing, playback, and response delays. They are **not** a controlled comparison of accent recognition, a population-level accuracy score, or proof that the system handles every real order correctly. Some recorded sessions contain incomplete replies, missing timings, or regressions. The latest Roman-display and checkout changes still require fresh real-microphone retesting.
+
+See [known limitations and recorded measurements](docs/known-limitations.md) before interpreting any benchmark.
+
+## Privacy, safety, and deployment limits
+
+- Server-side audio and transcript persistence is disabled.
+- The ticket cache is held in server memory, is bounded, expires after thirty minutes, and is lost on restart.
+- Tickets are redacted; callback numbers are not retained in the ticket payload.
+- Optional Resend delivery is disabled unless explicitly enabled and configured. It targets one owner test inbox, not the restaurant.
+- The SMS preview always reports `sent: false`; no carrier API is called.
+- A provider accepting an email request does not prove inbox delivery.
+- There is no durable ticket database, staff acceptance interface, delivery webhook, or POS integration.
+- Public/tunnel access requires the configured access-token protections. The local server is not intended to be exposed publicly without them.
+
+This is a development and demonstration system, not a production ordering service. Before production use it would need independently evaluated speech performance, real staff workflows, durable storage, secure deployment, operational monitoring, failure recovery, and explicit restaurant/POS integration.
+
+## Project documentation
+
+- [Five-minute demo script](docs/demo-script.md)
+- [Known limitations and latency measurements](docs/known-limitations.md)
+- [Action-safety design](docs/action-safety.md)
+- [Mixed-language behavior and retest guide](docs/code-switching.md)
+- [Ticket delivery, storage, and idempotency](docs/ticket-delivery.md)
+- [Real-microphone test script](docs/real-mic-script.md)
+- [GitHub publication workflow](docs/github-workflow.md)
+
+## Roadmap
+
+- Collect a consented, multi-speaker evaluation set covering relevant accents, dish names, numbers, and code-switching.
+- Score speech transcription and final-cart correctness separately.
+- Retest the current checkout and mixed-language changes on real microphones.
+- Improve clarification and recovery for noisy, incomplete, or conflicting speech.
+- Add durable ticket storage and a staff acceptance workflow.
+- Evaluate a production deployment and restaurant integrations only after safety and reliability requirements are met.
+
+## License and status
+
+This repository is a development demo. Check the repository's current files and configuration before reusing it or deploying it in another environment.
