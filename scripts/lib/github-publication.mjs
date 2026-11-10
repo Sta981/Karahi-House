@@ -1,7 +1,7 @@
 import {execFileSync} from "node:child_process";
 // Deliberately publish a source snapshot, never the development Git history.
 const roots = ["app/", "components/", "lib/", "voice/", "public/", "docs/", "scripts/"];
-const files = new Set(["README.md", "env.example", "package.json", "package-lock.json", "next.config.mjs", "next-env.d.ts", "tsconfig.json", "render.yaml"]);
+const files = new Set(["README.md", "env.example", "package.json", "package-lock.json", "next.config.mjs", "next-env.d.ts", "tsconfig.json", "render.yaml", "probe-user-transcripts.mjs"]);
 
 export function publishable(file) {
   if (file.includes("\\") || file.split("/").some(part => !part || part.startsWith("."))) return false;

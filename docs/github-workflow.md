@@ -16,7 +16,7 @@ The push command is run when work is completed in a session; no unattended daily
 
 The export stages its explicit file allowlist through NUL-delimited standard input, keeping large synthetic-audio catalogs below Windows command-line limits. Unselected files are never swept into staging.
 
-Published: application/engine/voice source, package lock, approved menu and separate aliases, development fixtures, scripts, documentation, blank real-mic results sheet and fixed synthetic template clips.
+Published: application/engine/voice source, package lock, approved menu and separate aliases, development fixtures, scripts, the root transcript acceptance probe, documentation, blank real-mic results sheet and fixed synthetic template clips.
 
 Excluded: every dotfile/dot-directory (including `.env.example`, `.gitignore`, `.gitattributes`), all `.env.local`/`.data` data, original held-out/burned inputs, graders, evaluation output/archive folders, recordings, completed CSVs and the old Git history. The visible `env.example` contains empty placeholders only. It is not a credential file. Fixed synthetic PCM clips are application assets, not caller recordings.
 
