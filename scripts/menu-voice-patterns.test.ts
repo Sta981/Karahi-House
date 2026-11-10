@@ -16,7 +16,13 @@ test("category browsing uses menu names and integer-cent prices without ordering
  }
 });
 test("full menu returns categories; browsing more preserves the cart and changes suggestions",()=>{
- const full=runTurn(newState(),"show your entire menu please");for(const category of MENU_CATEGORIES)assert.ok(full.reply.includes(category));assert.doesNotMatch(full.reply,/\$/);
+ const full=runTurn(newState(),"show your entire menu please"),categoryPages=[full.reply];let menuState=full.state;
+ while(menuState.browsing?.key==="menu"&&menuState.browsing.offset<MENU_CATEGORIES.length){
+  const next=runTurn(menuState,"more");menuState=next.state;categoryPages.push(next.reply);
+ }
+ for(const category of MENU_CATEGORIES)assert.ok(categoryPages.some(page=>page.includes(category)),`${category} is available in a menu page`);
+ for(const page of categoryPages){assert.ok(MENU_CATEGORIES.filter(category=>page.includes(category)).length<=5);assert.match(page,/Want more\?/);}
+ assert.doesNotMatch(categoryPages.join(" "),/\$/);
  const initial=seed("two onion naan"),first=runTurn(initial,"any sweet options tonight"),second=runTurn(first.state,"yes please");
  assert.deepEqual(first.state.cart,initial.cart);assert.deepEqual(second.state.cart,initial.cart);assert.notEqual(first.reply,second.reply);
  assert.ok(browsePool("desserts").some(item=>first.reply.includes(item.name)));

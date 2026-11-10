@@ -66,7 +66,7 @@ const NUM_WORDS: Record<string, number> = {
   twenty:20,thirty:30,forty:40,fifty:50,hundred:100,
   dozen: 12, single: 1, double: 2, triple: 3, zero: 0,
   // Urdu / Hindi numerals; callers mix languages mid-sentence
-  ek: 1, aik: 1, ik:1, ikk:1, do: 2, teen: 3, tinn:3, char: 4, chaar: 4, panch: 5, paanch: 5, panj:5,
+  ek: 1, aik: 1, ik:1, ikk:1, do: 2, teen: 3, tinn:3, char: 4, chaar: 4,
   che: 6, chay: 6, saat: 7, aath: 8, nau: 9, das: 10,
 };
 
@@ -467,9 +467,10 @@ export function analyzeUtterance(text: string): RecognitionAnalysis {
   function add(kind: RecognitionIssue["kind"], reason: RecognitionIssue["reason"], start: number, end: number, ids: string[], question: string) {
     if (issues.some((issue) => overlaps(issue, { start, end }))) return;
     const used = tokens.map((_, index) => matches.some((match) => !overlaps(match, { start, end }) && index >= match.start && index < match.end));
-    const repairedQuantity = sttQuantityBefore(tokens, start, used);
+    const quantityStart = start < tokens.length && (tokens[start] in NUM_WORDS || /^\d+$/.test(tokens[start])) ? start + 1 : start;
+    const repairedQuantity = sttQuantityBefore(tokens, quantityStart, used);
     const covered = matches.find(match => overlaps(match, { start, end }) && match.quantityHeard);
-    const quantity = repairedQuantity?.qty ?? covered?.qty ?? quantityBefore(tokens, start, used);
+    const quantity = repairedQuantity?.qty ?? quantityBefore(tokens, quantityStart, used) ?? covered?.qty;
     const quantityHeard = repairedQuantity?.heard ?? covered?.quantityHeard;
     const hints = extractVariantHints(context(start, end).join(" "));
     const candidates = ids.map((id): Match => {
@@ -511,7 +512,14 @@ export function analyzeUtterance(text: string): RecognitionAnalysis {
     const ids = idsFor(item => /karahi/i.test(item.name) && (!/\bmutton\b/.test(nearby) || ["Goat","Lamb"].includes(item.protein ?? "")) &&
       (!protein || item.protein === protein || new RegExp('^'+protein+'\\b','i').test(item.name)) &&
       (!style || item.name.toLowerCase().includes(style === "shinvari" ? "shinwari" : style === "kali mirch" ? "black pepper" : style)));
-    clarify(start, end, ids, "Which protein and karahi style would you like?");
+    const stylesForProtein = [...new Set(ids.map(id => MENU_BY_ID.get(id)!.family)
+      .filter((family): family is string => Boolean(family))
+      .map(family => family.replace(/\bkarahi\b/ig, "").trim())
+      .filter(Boolean))].slice(0, 5);
+    const question = protein
+      ? `Which ${protein.toLowerCase()} karahi style: ${stylesForProtein.join(", ")}?`
+      : "Which protein and karahi style would you like?";
+    clarify(start, end, ids, question);
   });
   // These recorded family sounds are proposals only, and only immediately
   // after a real protein. No guessed karahi style can enter the cart.

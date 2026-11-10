@@ -1,8 +1,12 @@
 import { MENU, type MenuItem } from "./menu";
 
 export const MENU_CATEGORIES=[...new Set(MENU.map(item=>item.category))];
+const categoryPage=(offset=0)=>{
+ const start=offset>=MENU_CATEGORIES.length?0:offset,categories=MENU_CATEGORIES.slice(start,start+5);
+ return {reply:`Menu categories: ${categories.join(", ")}. Want more?`,next:{key:"menu",offset:start+categories.length}};
+};
 export const MENU_FALLBACK="Sorry, I missed that. Are you asking about desserts, drinks or something else?";
-export const CATEGORY_LIST=`Menu categories: ${MENU_CATEGORIES.join(", ")}.`;
+export const CATEGORY_LIST=categoryPage().reply;
 export type BrowseState={key:string;offset:number};
 const groups:Record<string,(item:MenuItem)=>boolean>={
  desserts:item=>item.category==="Desserts", drinks:item=>item.category==="Beverages",
@@ -53,7 +57,7 @@ export function browsePage(key:string,offset=0){
 export function menuBrowsing(text:string,previous?:BrowseState):{reply:string;browsing?:BrowseState;garbled?:boolean}|undefined{
  const heard=text.toLowerCase().trim();
  if(previous&&/^(?:yes|yeah|more|yes please|show me more|what else)[.!?]*$/.test(heard)){
-  if(previous.key==="menu")return {reply:`${CATEGORY_LIST} Which category would you like?`,browsing:previous};
+  if(previous.key==="menu"){const page=categoryPage(previous.offset);return {reply:page.reply,browsing:page.next};}
   const page=browsePage(previous.key,previous.offset);return {reply:page.reply,browsing:page.next};
  }
  const frame=/\b(?:what (?:do you|you) have|what(?:'s| is) on|show|list|menu|options|choices|anything|something|recommend|do you (?:serve|have)|tell me about)\b/.test(heard)||/\b(?:dishes|meals|items)\b.*\b(?:available|tell me|running)\b|\b(?:which|what|tell me)\b.*\b(?:dishes|meals|items)\b|\brunning items\b/.test(heard);
@@ -64,6 +68,6 @@ export function menuBrowsing(text:string,previous?:BrowseState):{reply:string;br
  const lookup=frame?heard.replace(/\b(in|with|of) (?:lamp|lamps)\b/g,"$1 lamb"):heard;
  const key=browseKey(lookup);
  if(key){const page=browsePage(key);return {reply:page.reply,browsing:page.next};}
- if(/\b(?:full|whole|entire|on the|your) menu\b|^menu[.!?]*$|^what (?:do you|you) have[.!?]*$|\b(?:running items|items (?:are )?running)\b/.test(heard))return {reply:CATEGORY_LIST,browsing:{key:"menu",offset:0}};
- if(/\b(?:menu|what (?:do you|you) have|options|choices)\b/.test(heard))return {reply:`${MENU_FALLBACK} ${CATEGORY_LIST}`,garbled:true};
+ if(/\b(?:full|whole|entire|on the|your) menu\b|^menu[.!?]*$|^what (?:do you|you) have[.!?]*$|\b(?:running items|items (?:are )?running)\b/.test(heard)){const page=categoryPage();return {reply:page.reply,browsing:page.next};}
+ if(/\b(?:menu|what (?:do you|you) have|options|choices)\b/.test(heard)){const page=categoryPage();return {reply:`${MENU_FALLBACK} ${page.reply}`,browsing:page.next,garbled:true};}
 }

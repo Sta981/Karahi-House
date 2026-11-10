@@ -137,6 +137,58 @@ function pendingQuestion(s:DialogState):string|undefined{
   if(s.phase==="ask_name")return "What name should I put on the pickup request?";
   if(s.phase==="confirm")return s.closingMode==="anything_else"?"Anything else?":"Is the order I read back correct?";
 }
+function listChoices(choices:string[]):string{
+  const limited=choices.slice(0,5);
+  if(limited.length<2)return limited[0]??"";
+  if(limited.length===2)return `${limited[0]} or ${limited[1]}`;
+  return `${limited.slice(0,-1).join(", ")}, or ${limited.at(-1)}`;
+}
+function pendingOptionsReply(s:DialogState,text:string):string|undefined{
+  const asksOptions=/\b(?:which|what|kya)\b.*\b(?:styles?|proteins?|meats?|sizes?|portions?|options?|choices?)\b|\bkya\s+kya\s+(?:hai|hain)\b|\bwhat do you have\b/i.test(text);
+  if(!pendingQuestion(s)||!asksOptions)return;
+  const issue=s.recognition?.issues[0];
+  const candidates=issue?.candidates??[];
+  const askedStyle=/\b(?:style|styles)\b/i.test(text);
+  const askedProtein=/\b(?:protein|proteins|meat)\b/i.test(text);
+  const askedSize=/\b(?:size|sizes|portion|portions)\b/i.test(text);
+  let kind:"style"|"protein"|"size"|"spice"|"item"="item";
+  let choices:string[]=[];
+  if(askedSize||s.pending){
+    kind="size";
+    choices=MODIFIERS.size.options;
+  }else if(askedProtein||!askedStyle&&/korma/i.test(issue?.heard??"")){
+    kind="protein";
+    const pool=/karahi/i.test(issue?.heard??"")
+      ? MENU.filter(item=>/karahi/i.test(item.family??item.name))
+      : candidates.map(candidate=>getItem(candidate.itemId)!).filter(Boolean);
+    choices=[...new Set(pool.map(item=>item.protein).filter((value):value is string=>Boolean(value)))];
+    choices.sort((a,b)=>["Goat","Lamb","Chicken","Beef","Fish","Shrimp","Paneer"].indexOf(a)-["Goat","Lamb","Chicken","Beef","Fish","Shrimp","Paneer"].indexOf(b));
+  }else if(askedStyle||candidates.some(candidate=>/karahi/i.test(getItem(candidate.itemId)?.family??""))){
+    kind="style";
+    choices=[...new Set(candidates.map(candidate=>getItem(candidate.itemId)?.family)
+      .filter((family):family is string=>Boolean(family))
+      .map(family=>family.replace(/\bkarahi\b/ig,"").trim()).filter(Boolean))];
+  }else if(s.checkoutRequested||s.phase==="ask_spice"){
+    kind="spice";
+    choices=MODIFIERS.spice_level.options;
+  }else{
+    choices=[...new Set(candidates.map(candidate=>candidate.name))];
+  }
+  choices=choices.slice(0,5);
+  if(!choices.length)return;
+  const current=pendingQuestion(s);
+  let followUp=current??"Which option would you like?";
+  if(current&&s.lastReply?.endsWith(current)){
+    if(kind==="style")followUp=`Choose a style: ${listChoices(choices)}.`;
+    else if(kind==="protein")followUp=`Choose a protein: ${listChoices(choices)}.`;
+    else if(kind==="size")followUp=`Say ${listChoices(choices)}.`;
+    else if(kind==="spice")followUp=`Choose one spice level: ${listChoices(choices)}.`;
+    else followUp="Please choose one of those options.";
+  }
+  const noun=kind==="style"?"styles":kind==="protein"?"proteins":kind==="size"?"sizes":kind==="spice"?"spice levels":"options";
+  const intro=s.lastReply?.startsWith(`Available ${noun}:`)?"Choices":`Available ${noun}`;
+  return `${intro}: ${listChoices(choices)}. ${followUp}`;
+}
 function priceTurn(s:DialogState,text:string,analysis:RecognitionAnalysis):TurnResult|undefined{
   if(!/\b(?:price|prices|cost|total|subtotal|bill|how much|how much is it)\b/i.test(text))return;
   const resume=pendingQuestion(s);
@@ -363,6 +415,8 @@ function runTurnCore(state: DialogState, rawText: string, providedAnalysis?: Rec
     s.notes.push(`Staff review required: ${redactPhoneNumbers(text)}`);
     return reply("The team needs to review that before any order is accepted. What callback number should they use?");
   }
+  const optionsReply=pendingOptionsReply(s,text);
+  if(optionsReply)return reply(optionsReply);
   const browsing=menuBrowsing(text,s.browsing??(s.lastReply?.includes("Menu categories:")?{key:"menu",offset:0}:undefined));
   if(browsing){
     s.browsing=browsing.browsing;
@@ -709,8 +763,11 @@ function pendingExplicitCorrection(state:DialogState,text:string,intent:TurnInte
   const a=decorateAnalysis(suffix,analyzeUtterance(suffix));
   const exact=a.matches.find(match=>match.itemId===item.id);if(!exact)return;
   const local=tokens.slice(Math.max(0,chosen.start-2),chosen.end+3).join(" ");
-  exact.qty=extractQuantityHint(local)??first.candidates[0]?.qty??1;
-  exact.portion=extractVariantHints(local).portion??exact.portion;
+  const candidate=first.candidates.find(choice=>choice.itemId===item.id);
+  exact.qty=extractQuantityHint(local)??candidate?.qty??first.candidates[0]?.qty??1;
+  exact.portion=extractVariantHints(local).portion??candidate?.portion??exact.portion;
+  exact.spiceLevel??=candidate?.spiceLevel;
+  exact.notes=[...(candidate?.notes??[]),...(exact.notes??[])];
   const s=structuredClone(state);s.turns++;
   if(s.recognition!.replacement){const target=s.recognition!.replacement;if(s.cart[target.index]?.itemId!==target.itemId)return; s.cart.splice(target.index,1);}
   s.recognition!.issues.splice(issueIndex,1);s.recognition!.attempts=0;
@@ -720,6 +777,11 @@ function pendingExplicitCorrection(state:DialogState,text:string,intent:TurnInte
 }
 
 function actionTurn(state:DialogState,text:string,intent:TurnIntent,provided?:RecognitionAnalysis):TurnResult{
+  if(state.recognition||state.pending||state.checkoutRequested){
+    const optionState=structuredClone(state);
+    const optionsReply=pendingOptionsReply(optionState,text);
+    if(optionsReply)return {reply:optionsReply,state:{...optionState,turns:state.turns+1},matches:[]};
+  }
   if(intent==="question"||intent==="complaint")return informationTurn(state,text,intent);
   if(intent==="removal")return removalTurn(state,text);
   if(state.pending&&state.recognition){
@@ -857,10 +919,10 @@ export function runTurn(state:DialogState,text:string,analysis?:RecognitionAnaly
   }
   const progress=JSON.stringify([state.cart,state.pending,state.orderSpice,state.phase,state.recognition?.issues.map(issue=>issue.heard),state.pendingCorrection?.segment,state.pendingOrderList,state.categoryOrder,state.removalQuantity,state.removalConfirmation])!==JSON.stringify([result.state.cart,result.state.pending,result.state.orderSpice,result.state.phase,result.state.recognition?.issues.map(issue=>issue.heard),result.state.pendingCorrection?.segment,result.state.pendingOrderList,result.state.categoryOrder,result.state.removalQuantity,result.state.removalConfirmation]);
   const browsing=!!menuBrowsing(text,state.browsing??(state.lastReply?.includes("Menu categories:")?{key:"menu",offset:0}:undefined));
-  const answeredInformation=["question","complaint"].includes(decision.intent)&&!result.needsLLM;
+  const answeredInformation=["question","complaint"].includes(decision.intent)&&!result.needsLLM||!!pendingOptionsReply(state,text);
   const miss=!answeredInformation&&!browsing&&!progress&&(!!pendingQuestion(result.state)||!!result.needsLLM)&&! /^(?:hello|hi|hey|are you there)[.!?]*$/i.test(text)&&!/^\b(?:price|cost|total|subtotal|bill|how much)\b/i.test(text);
   result.state.recoveryMisses=miss?(state.recoveryMisses??0)+1:0;
-  if(result.state.recoveryMisses>=2&&!result.state.removalQuantity&&result.state.pendingCorrection?.segment.action!=="remove"&&!result.reply.includes("Menu categories:"))result.reply=`${CATEGORY_LIST} Which category would you like?`;
+  if(result.state.recoveryMisses>=2&&!result.state.removalQuantity&&result.state.pendingCorrection?.segment.action!=="remove"&&!result.reply.includes("Menu categories:")){result.reply=`${CATEGORY_LIST} Which category would you like?`;result.state.browsing={key:"menu",offset:5};}
   if(result.state.recoveryMisses>=3&&!browsing){result.state.needsReview=true;result.reply="I couldn't resolve that. The team can help; what callback number should they use?";}
   if(result.reply===state.lastReply){
     if(result.state.removalQuantity)result.reply=removalQuantityQuestion(getItem(result.state.removalQuantity.itemId)!.name,result.state.removalQuantity.available,result.reply.startsWith("Remove"));
@@ -876,16 +938,26 @@ export function runTurn(state:DialogState,text:string,analysis?:RecognitionAnaly
   // This runs AFTER every reply rewrite. No caller-text or LLM string can
   // certify a mutation: disclosure comes solely from the local cart diff.
   const changes=cartChanges(state.cart,result.state.cart);
-  const disclosure=changes.map(change=>change.text);
+  let disclosure=changes.map(change=>change.text);
+  const bulkSpiceChanged=state.orderSpice!==result.state.orderSpice&&!!result.state.orderSpice&&changes.length>1&&changes.every(change=>change.action==="changed"&&change.after?.spiceLevel===result.state.orderSpice);
+  if(bulkSpiceChanged){
+    const followUp=pendingQuestion(result.state)??"Anything else?";
+    const response=`${result.state.orderSpice} for everything. ${followUp}`;
+    disclosure=[response];
+    result.reply=response;
+  }
   if(!changes.length&&result.operations.length){
     // Pure regrouping/metadata churn has no caller-visible order effect.
     // Preserve the original lines instead of committing an undisclosed diff.
     result.state.cart=structuredClone(state.cart);result.operations=[];
   }
   if(disclosure.length){
-    // Replace stale generic claims with authoritative before/after templates.
-    result.reply=result.reply.replace(/^(?:Added [^?]*?\.\s*|Updated[^?]*?\.\s*|Removed [^?]*?\.\s*)+/i,"");
-    result.reply=`${disclosure.join(" ")} ${result.reply}`.trim();
+    if(bulkSpiceChanged)result.reply=disclosure[0];
+    else{
+      // Replace stale generic claims with authoritative before/after templates.
+      result.reply=result.reply.replace(/^(?:Added [^?]*?\.\s*|Updated[^?]*?\.\s*|Removed [^?]*?\.\s*)+/i,"");
+      result.reply=`${disclosure.join(" ")} ${result.reply}`.trim();
+    }
   }
   result.disclosure=disclosure;
   if(disclosure.some(fact=>!result.reply.includes(fact))){

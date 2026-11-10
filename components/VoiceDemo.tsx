@@ -56,10 +56,10 @@ interface Summary {
 type Phase = "idle" | "connecting" | "speaking" | "listening" | "thinking";
 
 const ACCENTS = [
-  { code: "en-IN", label: "🇮🇳/🇵🇰 South Asian" },
-  { code: "en-US", label: "🇺🇸 US" },
-  { code: "en-GB", label: "🇬🇧 UK" },
-  { code: "en-AU", label: "🇦🇺 AU" },
+  { code: "en-IN", label: "South Asian" },
+  { code: "en-US", label: "US English" },
+  { code: "en-GB", label: "UK English" },
+  { code: "en-AU", label: "Australian English" },
 ];
 
 // silence (ms) after your last words before the turn is sent
@@ -395,161 +395,162 @@ export default function VoiceDemo() {
       : phase === "speaking"
         ? "Agent speaking"
         : phase === "listening"
-          ? "🎤 Your turn, speak now (take your time)"
+          ? "Your turn, speak now (take your time)"
           : phase === "thinking"
             ? "Thinking…"
-            : "📞 Try a call, no phone needed";
+            : "Try a call, no phone needed";
 
   return (
-    <div className="demo-shell" id="demo">
-      <div className="panel">
-        <h3>
-          {phase === "listening" && <span className="listening-dot" />}
-          {statusLine}
-        </h3>
+    <section className="panel voice-order-panel" id="demo">
+      <div className="voice-card-heading">
+        <div>
+          <h2>Order by voice</h2>
+          <p className="voice-status">
+            {phase === "listening" && <span className="listening-dot" />}
+            {statusLine}
+          </p>
+        </div>
+      </div>
 
-        <div className="call-controls">
-          {!callActive ? (
-            <button className="btn btn-primary" onClick={startCall}>
-              ▶ Start a call
+      <div className="call-controls">
+        {!callActive ? (
+          <button className="btn btn-primary" onClick={startCall}>
+            Start a call
+          </button>
+        ) : (
+          <>
+            <button className="btn btn-danger" onClick={endCall}>
+              Hang up
             </button>
-          ) : (
-            <>
-              <button className="btn btn-danger" onClick={endCall}>
-                ✕ Hang up
+            {phase === "speaking" && (
+              <button className="btn btn-ghost" onClick={interrupt}>
+                Tap to interrupt
               </button>
-              {phase === "speaking" && (
-                <button className="btn btn-primary btn-pulse" onClick={interrupt}>
-                  🎤 Tap to interrupt
-                </button>
-              )}
-            </>
-          )}
-          <div className="accent-picker">
-            {ACCENTS.map((a) => (
-              <button
-                key={a.code}
-                className={`accent-chip ${accent === a.code ? "active" : ""}`}
-                onClick={() => setAccent(a.code)}
-                title="Your accent, for speech recognition"
-              >
-                {a.label}
-              </button>
-            ))}
+            )}
+          </>
+        )}
+        <div className="accent-picker">
+          {ACCENTS.map((a) => (
+            <button
+              key={a.code}
+              className={`accent-chip ${accent === a.code ? "active" : ""}`}
+              onClick={() => setAccent(a.code)}
+              title="Your accent, for speech recognition"
+            >
+              {a.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {callActive && (
+        <div className="mic-row" title="Live microphone level">
+          <span className="mic-label">mic</span>
+          <div className="mic-meter">
+            <div className="mic-meter-fill" ref={meterFillRef} />
           </div>
         </div>
+      )}
 
-        {callActive && (
-          <div className="mic-row" title="Live microphone level">
-            <span className="mic-label">mic</span>
-            <div className="mic-meter">
-              <div className="mic-meter-fill" ref={meterFillRef} />
-            </div>
+      {!supported && <p className="hint-text">Voice needs Chrome or Edge. You can still type below.</p>}
+      {micError && <p className="hint-text">{micError}</p>}
+
+      <div className="transcript" ref={transcriptRef}>
+        {turns.length === 0 && phase === "idle" && (
+          <p className="hint-text">
+            Press <strong>Start a call</strong>, wait for the greeting, then try a pickup order.
+            The level bar shows your mic is live. When the agent talks, tap <strong>interrupt</strong> to cut it
+            off. Or skip the mic and type below.
+          </p>
+        )}
+        {turns.map((t, i) => (
+          <div key={i} className={`bubble ${t.role}`}>
+            <div className="who">{t.role === "user" ? "You" : "Karahi House AI"}</div>
+            {t.text}
+            {t.matches && t.matches.length > 0 && (
+              <div className="match-chips">
+                {t.matches.map((m, j) => (
+                  <span className="match-chip" key={j}>
+                    “{m.heard}”<span className="arrow">→</span>
+                    {m.name}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+        {interim && <div className="bubble user interim">{interim}…</div>}
+        {phase === "thinking" && (
+          <div className="bubble agent typing">
+            <span className="tdot" />
+            <span className="tdot" />
+            <span className="tdot" />
+          </div>
+        )}
+      </div>
+
+      <div className="type-row">
+        <input
+          value={typed}
+          onChange={(e) => setTyped(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && submitTyped()}
+          placeholder="Or type your order here…"
+        />
+        <button className="btn btn-ghost" onClick={submitTyped}>
+          Send
+        </button>
+      </div>
+
+      <section className="voice-cart" aria-labelledby="voice-cart-title">
+        <h3 id="voice-cart-title">Your order</h3>
+        {cart.length === 0 ? (
+          <p className="cart-empty">Recognised order items appear here as you go.</p>
+        ) : (
+          <div className="cart-lines">
+            {cart.map((l, i) => (
+              <div className="cart-line" key={i}>
+                <div>
+                  <div>
+                    {l.qty > 1 ? `${l.qty} × ` : ""}
+                    {l.name}
+                  </div>
+                  {l.variantLabel && <div className="variant">{l.variantLabel}</div>}
+                  {l.spiceLevel && <div className="variant">{l.spiceLevel}</div>}
+                  {l.notes?.map((note, at) => <div className="variant" key={at}>Note: {note}</div>)}
+                  {l.sizeVerified === false && <div className="variant">Size surcharge unverified</div>}
+                </div>
+                <div>${(l.unitPriceCents * l.qty / 100).toFixed(2)}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        {cart.length > 0 && (
+          <div className="cart-total">
+            <span>Subtotal</span>
+            <span>${(subtotalCents / 100).toFixed(2)}</span>
           </div>
         )}
 
-        {!supported && <p className="hint-text">⚠️ Voice needs Chrome or Edge. You can still type below.</p>}
-        {micError && <p className="hint-text">⚠️ {micError}</p>}
-
-        <div className="transcript" ref={transcriptRef}>
-          {turns.length === 0 && phase === "idle" && (
-            <p className="hint-text">
-              Press <strong>Start a call</strong>, wait for the greeting, then order like you would on the phone.
-              The green bar shows your mic is live. When the agent talks, tap <strong>interrupt</strong> to cut it
-              off. Or skip the mic and type below.
-            </p>
-          )}
-          {turns.map((t, i) => (
-            <div key={i} className={`bubble ${t.role}`}>
-              <div className="who">{t.role === "user" ? "You" : "Karahi House AI"}</div>
-              {t.text}
-              {t.matches && t.matches.length > 0 && (
-                <div className="match-chips">
-                  {t.matches.map((m, j) => (
-                    <span className="match-chip" key={j}>
-                      “{m.heard}”<span className="arrow">→</span>
-                      {m.name}
-                    </span>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-          {interim && <div className="bubble user interim">{interim}…</div>}
-          {phase === "thinking" && (
-            <div className="bubble agent typing">
-              <span className="tdot" />
-              <span className="tdot" />
-              <span className="tdot" />
-            </div>
-          )}
-        </div>
-
-        <div className="type-row">
-          <input
-            value={typed}
-            onChange={(e) => setTyped(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && submitTyped()}
-            placeholder="Or type your order here…"
-          />
-          <button className="btn btn-ghost" onClick={submitTyped}>
-            Send
-          </button>
-        </div>
-      </div>
-
-      <div>
-        <div className="panel">
-          <h3>🧾 Your order, as it hears it</h3>
-          {cart.length === 0 ? (
-            <p className="cart-empty">Order items show up here the moment the agent understands them.</p>
-          ) : (
-            <div className="cart-lines">
-              {cart.map((l, i) => (
-                <div className="cart-line" key={i}>
-                  <div>
-                    <div>
-                      {l.qty > 1 ? `${l.qty} × ` : ""}
-                      {l.name}
-                    </div>
-                    {l.variantLabel && <div className="variant">{l.variantLabel}</div>}
-                    {l.spiceLevel && <div className="variant">{l.spiceLevel}</div>}
-                    {l.notes?.map((note, at) => <div className="variant" key={at}>Note: {note}</div>)}
-                    {l.sizeVerified === false && <div className="variant">Size surcharge unverified</div>}
-                  </div>
-                  <div>${(l.unitPriceCents * l.qty / 100).toFixed(2)}</div>
-                </div>
-              ))}
-            </div>
-          )}
-          {cart.length > 0 && (
-            <div className="cart-total">
-              <span>Subtotal</span>
-              <span>${(subtotalCents / 100).toFixed(2)}</span>
-            </div>
-          )}
-
-          {demoTicket&&<DemoTicketView ticket={demoTicket}/>}
-          {summary && !demoTicket && (
-            <div className="summary-card">
-              <h4>Demo request — pending staff acceptance</h4>
-              {[
-                summary.customerName ? `Name: ${summary.customerName}` : null,
-                summary.orderType ? `For: ${summary.orderType}` : null,
-                `Status: ${summary.status}. Menu approved by the restaurant.`,
-                ...summary.items.map(
-                  (it) =>
-                    `• ${it.qty} × ${it.name}${it.variant ? ` (${it.variant})` : ""}${it.spice ? `, ${it.spice}` : ""}${it.notes.length ? `, Notes: ${it.notes.join("; ")}` : ""}${it.sizeVerified === false ? ", size surcharge unverified" : ""}: $${(it.lineTotalCents / 100).toFixed(2)}`,
-                ),
-                summary.items.length ? `Subtotal: $${(summary.subtotalCents / 100).toFixed(2)}; tax not configured` : null,
-                ...summary.notes.map((n) => `Note: ${n}`),
-              ]
-                .filter(Boolean)
-                .join("\n")}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+        {demoTicket && <DemoTicketView ticket={demoTicket} />}
+        {summary && !demoTicket && (
+          <div className="summary-card">
+            <h4>Demo request — pending staff acceptance</h4>
+            {[
+              summary.customerName ? `Name: ${summary.customerName}` : null,
+              summary.orderType ? `For: ${summary.orderType}` : null,
+              `Status: ${summary.status}. Menu approved by the restaurant.`,
+              ...summary.items.map(
+                (it) =>
+                  `- ${it.qty} × ${it.name}${it.variant ? ` (${it.variant})` : ""}${it.spice ? `, ${it.spice}` : ""}${it.notes.length ? `, Notes: ${it.notes.join("; ")}` : ""}${it.sizeVerified === false ? ", size surcharge unverified" : ""}: $${(it.lineTotalCents / 100).toFixed(2)}`,
+              ),
+              summary.items.length ? `Subtotal: $${(summary.subtotalCents / 100).toFixed(2)}; tax not configured` : null,
+              ...summary.notes.map((n) => `Note: ${n}`),
+            ]
+              .filter(Boolean)
+              .join("\n")}
+          </div>
+        )}
+      </section>
+    </section>
   );
 }

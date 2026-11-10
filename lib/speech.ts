@@ -1,4 +1,5 @@
 import { MENU } from "./menu";
+import POLICY from "./recognition-policy.json";
 
 // Lexical normalization only. Keep negation, quantities, spice, size and item
 // numbers. Never stem arbitrary words (brains/chips are menu words).
@@ -17,7 +18,9 @@ export function speechTokens(text:string):string[]{
   // A fused bread mishearing is repaired only as an ordering fragment. It
   // cannot rewrite a customer's name, callback, or an arbitrary sentence.
   if(/^(?:(?:i|would|like|want|need|add|get|me|please|can|have|a|an|one|two|three|four|too|to|for|\d+)\s+)*ganina(?:\s+(?:please|bread|naan))?[.!]?$/i.test(value.trim()))value=value.replace(/\bganina\b/g,"garlic naan");
-  let tokens=value.replace(/[^a-z0-9\s]/g," ").split(/\s+/).filter(Boolean).map(token=>PLURALS[token]??token).filter(token=>!FILLERS.has(token));
+  let tokens=value.replace(/[^a-z0-9\s]/g," ").split(/\s+/).filter(Boolean)
+    .map(token=>POLICY.lexicon.wordAliases[token as keyof typeof POLICY.lexicon.wordAliases]??PLURALS[token]??token)
+    .filter(token=>!FILLERS.has(token));
   tokens=tokens.filter((token,index)=>index===0||token!==tokens[index-1]);
   // Context-only STT repair. "none" elsewhere retains its ordinary meaning.
   tokens=tokens.map((token,index)=>NAAN_MISHEARINGS.has(token)&&(BREAD_CONTEXT.has(tokens[index-1])||BREAD_CONTEXT.has(tokens[index+1]))?"naan":token);

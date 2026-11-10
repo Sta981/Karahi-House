@@ -11,8 +11,8 @@ import DemoTicketView from "./DemoTicketView";
 
 type Timing = { totalMs: number; endpointAndUplinkMs: number; engineMs: number; ttsFirstByteMs: number; returnNetworkMs: number; browserRttMs: number; clockUncertaintyMs: number };
 function percentiles(values: number[]) { const sorted = [...values].sort((a,b) => a-b); return { n: sorted.length, p50: sorted[Math.max(0, Math.ceil(sorted.length*.5)-1)]?.toFixed(1) ?? "—", p95: sorted[Math.max(0, Math.ceil(sorted.length*.95)-1)]?.toFixed(1) ?? "—" }; }
-export default function StreamingVoice() {
-  const [model, setModel] = useState("nova-3"), [status, setStatus] = useState("Ready for an English/Hindi mixed-language test"), [active, setActive] = useState(false);
+export default function StreamingVoice({compact=false}:{compact?:boolean}) {
+  const [model, setModel] = useState("nova-3"), [status, setStatus] = useState(compact?"Ready for a pickup order":"Ready for an English/Hindi mixed-language test"), [active, setActive] = useState(false);
   const [accessCode,setAccessCode]=useState(""),[locationLabel,setLocationLabel]=useState("Not measured"),[logs,setLogs]=useState<VoiceLogRow[]>([]);
   const [requiresAccessCode,setRequiresAccessCode]=useState(false),[partial,setPartial]=useState(""),[micLevel,setMicLevel]=useState(0);
   const [intended,setIntended]=useState<Record<string,string>>({});
@@ -20,6 +20,7 @@ export default function StreamingVoice() {
   const [demoTicket,setDemoTicket]=useState<DemoTicket|null>(null);
   const [build,setBuild]=useState<{commit:string;dirty:boolean}|null>(null),[runtime,setRuntime]=useState<VoiceRuntimeInfo|null>(null);
   const [rows, setRows] = useState<{role:string;text:string}[]>([]), [cart, setCart] = useState<any[]>([]), [timings, setTimings] = useState<Timing[]>([]);
+  const cartSubtotalCents=cart.reduce((total,item)=>total+item.unitPriceCents*item.qty,0);
   const cleanup = useRef<() => void>(() => {}); const interrupt = useRef<(trigger?:BargeTrigger) => void>(() => {});
   useEffect(() => {
     const abort=new AbortController();
@@ -157,6 +158,27 @@ export default function StreamingVoice() {
       setStatus(`Listening · ${msg.model} · ${msg.tts} · microphone stays on during replies`);
     };
   }
+  if(compact)return <section className="streaming-compact">
+    <div className="panel streaming-order-panel">
+      <div className="voice-card-heading"><div><h2>Order by voice</h2><p className="voice-status" role="status">{status.startsWith("Listening")&&<span className="listening-dot"/>}{status}</p></div></div>
+      {requiresAccessCode&&<label>Hosted demo access code <input aria-label="Hosted demo access code" type="password" autoComplete="off" value={accessCode} onChange={e=>setAccessCode(e.target.value)} disabled={active}/></label>}
+      <div className="call-controls">
+        <button className="btn btn-primary" disabled={active||!model} onClick={() => void connect()}>{active?"Call in progress":"Start a call"}</button>
+        <button className="btn btn-ghost" disabled={!active} onClick={() => interrupt.current()}>Interrupt reply</button>
+        <button className="btn btn-danger" disabled={!active} onClick={() => {cleanup.current();setStatus("Ended. Microphone released.");}}>End call</button>
+      </div>
+      {active&&<p className="compact-mic">Microphone level <meter aria-label="Microphone level" min={0} max={0.15} value={micLevel}/>{partial&&<span> Heard so far: {partial}</span>}</p>}
+      <div className="streaming-transcript" aria-live="polite">
+        {rows.map((row,i)=><div className={`bubble ${row.role==="You"?"user":"agent"}`} key={i}><div className="who">{row.role}</div>{row.text}</div>)}
+      </div>
+      <section className="voice-cart" aria-labelledby="stream-cart-title">
+        <h3 id="stream-cart-title">Your order</h3>
+        {cart.length ? <div className="cart-lines">{cart.map((item,i)=><div className="cart-line" key={i}><div><div>{item.qty} × {item.name}</div>{item.size&&<div className="variant">{item.size}</div>}{item.spiceLevel&&<div className="variant">{item.spiceLevel}</div>}{item.notes?.map((note:string,index:number)=><div className="variant" key={index}>Note: {note}</div>)}</div><div>${(item.unitPriceCents*item.qty/100).toFixed(2)}</div></div>)}</div>:<p className="cart-empty">No items yet.</p>}
+        {cart.length>0&&<div className="cart-total"><span>Subtotal</span><span>${(cartSubtotalCents/100).toFixed(2)}</span></div>}
+        {demoTicket?<DemoTicketView ticket={demoTicket}/>:ticket!=null&&<><h3>Final demo ticket</h3><pre>{JSON.stringify(ticket,null,2)}</pre></>}
+      </section>
+    </div>
+  </section>;
   return <section className="section"><div className="panel">
     <h1>Karahi House streaming voice demo</h1>
     <p>Menu approved by the restaurant. Demo orders are simulated and pending staff acceptance. No caller audio is saved. Redacted turn logs can be exported to CSV.</p>
