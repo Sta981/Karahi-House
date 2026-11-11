@@ -1,117 +1,170 @@
-# Karahi House — Voice AI Ordering Assistant
+# Karahi House: Accent-Aware Voice AI Ordering Assistant
 
-A browser-based voice ordering demo for **Karahi House**, 1409 Polk Street, San Francisco. The project explores how a voice agent can understand food orders, handle menu questions, clarify ambiguous requests, and build a pickup ticket—while making order changes explicit and reviewable.
+A voice AI ordering prototype built around a real-world restaurant use case: **Karahi House in San Francisco, California**. The goal is to make voice-based food ordering more reliable when callers speak with South Asian accents, use regional dish names, or mix English with familiar Urdu/Hindi ordering phrases.
 
-The system is designed to test speech recognition across different English configurations and small English/Hindi mixed-language orders. **Accent accuracy has not been independently established**: there is no scored multi-speaker accent dataset, and synthetic speech results are not evidence of real-world accent performance.
+**Restaurant:** [Karahi House — Official Website](https://www.karahihousesf.com/)  
+**Online menu & ordering:** [Karahi House on HeyEats](https://app.heyeats.shop/store/karahi-house/shop)  
+**Location:** [1409 Polk Street, San Francisco — Google Maps](https://maps.app.goo.gl/LoJvtozd1FcDDPpR8?g_st=ac)
 
-> **Demo status:** Orders are simulated and remain `DEMO` / `pending_acceptance`. The application is not connected to the restaurant's phone line, POS, payment system, delivery service, or staff workflow. Nothing is submitted to the restaurant.
+> **The real-world problem:** A restaurant may have a menu full of culturally specific dish names—Chicken Karahi, Shinwari Karahi, Seekh Kebab, qeema, naan and more—while general-purpose speech recognition is often optimized for much more common English speech. A caller saying “chicken karahi” or “seekh kebab” can be transcribed incorrectly, especially when pronunciation, accent, background noise, or code-switching is involved. If the system misunderstands the dish or quantity, the order can be wrong before a staff member ever sees it.
 
-## The problem
+I built this project to address that gap for the Karahi House ordering context: **recognize the spoken request as accurately as the available speech provider allows, ground decisions in the restaurant's menu, clarify uncertainty, and prevent an uncertain transcript from silently changing the order.**
 
-Voice ordering is more than speech-to-text. A useful ordering assistant must distinguish between a new item, a quantity correction, a removal, a menu question, and a request for clarification. A misheard dish or number can become a wrong order if recognized text is allowed to change the cart without checks.
+This is a working development prototype, not a claim of a completed restaurant deployment. The current demo creates simulated pickup tickets; it is not connected to the restaurant's live phone line, POS, payment system, or staff workflow.
 
-This project addresses that problem with two separate responsibilities:
+## Why this problem matters
 
-- **Speech layer:** transcribes the caller's speech and speaks the agent's response.
-- **Order layer:** applies local menu knowledge, validates the requested action, asks for missing choices, and discloses cart changes.
+Voice ordering is not just converting audio into text. A useful restaurant voice agent must understand:
 
-The separation matters: a fluent voice response is not proof that the underlying order is correct.
+- Dish names that may be unfamiliar to general-purpose speech recognizers.
+- Different pronunciations of the same food item.
+- Quantities and portion sizes such as Half and Full.
+- Spice preferences and item-specific modifications.
+- Short mixed-language phrases such as “do naan”, “aik karahi”, or “adha”.
+- The difference between ordering an item, asking about it, correcting it, or removing it.
 
-## What the demo does
+For example, a recognition error that changes “seekh kebab” into an unrelated phrase is not a cosmetic transcription issue. It can cause the wrong menu item to be selected. Similarly, interpreting “remove one” as “remove all” can corrupt the cart.
 
-- Streams microphone audio from a browser to a local voice server.
-- Supports Deepgram STT configurations: Flux English, Nova-3 multilingual, and Nova-3 Indian English.
-- Uses **Aura-2 Thalia** for default speech generation, with Kokoro available as an explicit alternative.
-- Answers menu questions from the local approved menu data.
-- Handles item quantities, size and spice choices, notes, removals, and pickup names.
-- Asks for clarification when a dish, protein, size, spice, or removal target is ambiguous.
-- Uses shared intent permissions and a semantic cart diff so questions and complaints cannot silently mutate an order.
-- Reads back the complete order and subtotal before creating a demo ticket.
-- Shows the ticket in the browser and allows a redacted JSON download.
-- Can optionally email a redacted demo ticket to one configured owner test inbox through Resend. The SMS preview is simulated and is **not sent**.
+The system therefore treats speech recognition and order correctness as separate problems. It combines provider-level speech recognition with menu-grounded local processing, clarification, action permissions, and a final order read-back.
 
-The current multilingual path uses a small explicit vocabulary for common ordering phrases. Romanized transcript display is a presentation feature; it does not translate speech or improve the underlying speech recognizer. Full Urdu/Punjabi conversation support is not implemented.
+## How the system addresses accent and ordering errors
 
-## How it works
+### 1. Speech recognition configurations for real caller variation
+
+The browser voice demo supports three Deepgram speech-to-text configurations:
+
+- **Flux English**
+- **Nova-3 multilingual** with English and Hindi language hints
+- **Nova-3 Indian English**
+
+This makes it possible to test different recognition configurations against the same restaurant-ordering workflow. Nova-3 multilingual is the initial selection for mixed-language testing; it is **not** declared the most accurate model.
+
+The browser captures microphone audio through an AudioWorklet and streams it to the local voice server over WebSocket. The voice pipeline supports adaptive endpointing, interruption handling, and streamed speech playback.
+
+### 2. Menu-grounded recognition and mixed-language normalization
+
+The order engine works against the restaurant's local approved menu data rather than allowing a language model to invent dishes or prices.
+
+A small explicit vocabulary handles common ordering fillers, number words, Half/Full answers, spice phrases, completion phrases, and removal requests in supported Roman and native-script forms. This helps normalize familiar phrases such as:
+
+| Caller phrase | Intended local interpretation |
+|---|---|
+| “do garlic naan” | Add two Garlic Naan |
+| “aik mango lassi” | Add one Mango Lassi |
+| “adha” | Half, when answering a pending size question |
+| “kam mirch” | Mild Spice, when answering a pending spice question |
+| “naan hata do” | Ask how many to remove if the quantity is ambiguous |
+
+The multilingual transcript can be displayed in approximate Roman letters for readability. This is a presentation-only transliteration: it does not translate speech, improve the speech recognizer, or feed transliterated text into menu matching. Full Urdu/Punjabi conversation recognition is not currently supported.
+
+### 3. Safe, menu-grounded order engine
+
+The local TypeScript order engine handles menu lookup, item quantities, size and spice choices, notes, removals, pickup names, subtotal calculation, and checkout.
+
+It also enforces action boundaries:
+
+- A menu question or complaint cannot silently add an item.
+- A removal request cannot turn into an addition.
+- Ambiguous removals ask whether to remove one, both, or all relevant items.
+- A changed cart is disclosed using the before-and-after order state.
+- A correction invalidates the previous read-back.
+- The complete order and subtotal are read back before the demo ticket is created.
+
+The optional FAQ LLM is disabled by default. Order items, menu prices, and subtotal calculations come from local application logic, not generated model output.
+
+## End-to-end architecture
 
 ```text
+Caller
+  |
+  v
 Browser microphone
-       |
-       v
+  |
+  v
 AudioWorklet capture
-       |
-       v
+  |
+  v
 WebSocket voice server
-       |
-       v
-Deepgram speech-to-text
-       |
-       v
-Local recognition + order engine
-       |
-       +--> Menu lookup and clarification
-       |
-       +--> Intent authorization + cart validation
-       |
-       v
-Response generation
-       |
-       v
+  |
+  v
+Deepgram STT
+(Flux / Nova-3 multilingual / Nova-3 en-IN)
+  |
+  v
+Local recognition and normalization
+  |
+  v
+Menu-grounded order engine
+  |
+  +--> Item / quantity / size / spice handling
+  |
+  +--> Intent permissions and cart validation
+  |
+  +--> Clarification when speech or intent is ambiguous
+  |
+  v
+Order read-back and caller confirmation
+  |
+  v
+DEMO pickup ticket
+  |
+  +--> Browser ticket and JSON download
+  |
+  +--> Optional owner test-inbox email (Resend)
+  |
+  v
 Aura-2 Thalia text-to-speech
-       |
-       v
-Browser audio playback
-       |
-       v
-Read-back confirmation -> DEMO ticket
+  |
+  v
+Caller hears the response
 ```
 
-### Order safety and checkout
+The active streaming voice path uses Deepgram for speech-to-text and Aura-2 Thalia for speech generation. Vapi and Twilio are not used in the current voice pipeline.
 
-The order engine uses local menu facts for item names, quantities, sizes, spice levels, prices, and subtotal calculations. It does not treat every recognized phrase as permission to edit the cart.
+## Restaurant menu and business context
 
-- Questions and complaints are read-only.
-- A removal request cannot become an addition.
-- Ambiguous removals ask how many items to remove.
-- Cart changes are summarized from the before/after state.
-- A changed cart requires a fresh read-back.
-- In streaming voice, the agent asks **“Anything else?”** after the complete read-back. A no-more answer confirms that read-back; “yes” resumes ordering.
-- The resulting ticket remains pending staff acceptance.
+The active menu source is `lib/menu-source.json`, based on the restaurant-approved menu data. The repository's menu documentation records:
 
-The legacy text flow has a separate confirmation mode and still asks “Is that correct?” before accepting a yes.
+- 84 unique menu item IDs.
+- 13 items with size choices.
+- 66 spice-enabled items.
+- Five supported spice options.
+- Prices stored as integer cents.
 
-## Technology
+The engine uses this local data for item names, options, and price calculations. The menu source still flags six size surcharges as unverified. Tax is not configured, so the displayed amount is a subtotal rather than a tax-inclusive total. Allergies and other staff-review requests require human review.
 
-| Area | Implementation |
-|---|---|
-| Application | Next.js 15, React 19, TypeScript |
-| Speech-to-text | Deepgram Flux / Nova-3 |
-| Text-to-speech | Deepgram Aura-2 Thalia |
-| Voice transport | Browser AudioWorklet and WebSocket |
-| Order processing | Local TypeScript recognition and order engine |
-| Mixed-script display | Sanscript transliteration |
-| Optional email | Resend |
-| Testing | Node test runner, TypeScript/tsx, Playwright |
+## Demo checkout and ticket behavior
 
-Vapi and Twilio are not used for the active voice pipeline. The FAQ LLM is disabled by default; adding API keys alone does not enable it.
+In the streaming voice flow, the caller can indicate that ordering is complete. The agent resolves missing choices and the pickup name, reads back the full order and subtotal, and asks **“Anything else?”** A no-more response confirms that read-back; “yes” returns to ordering. If the cart changes, the agent must read it back again.
 
-## Run locally
+A completed demo request produces a ticket marked:
+
+- `label: DEMO`
+- `status: pending_acceptance`
+- `staffAccepted: false`
+
+The browser displays the ticket and offers a redacted JSON download. Optional email notification can be enabled for one configured owner test inbox using Resend. The SMS preview is simulated and is **not sent**.
+
+**No order is sent to Karahi House.** There is no live staff acceptance workflow, durable ticket database, restaurant email routing, POS connection, payment processing, or delivery integration in this version.
+
+## Running locally
 
 ### Requirements
 
 - Node.js and npm
-- Chrome or Edge with microphone access
+- Chrome or Edge
+- Microphone access
 - A Deepgram API key
 
-### 1. Install dependencies
+### Install
 
 ```bash
 npm install
 ```
 
-### 2. Configure environment variables
+### Configure environment
 
-Copy the public example file to a private local environment file:
+Copy `env.example` to a private `.env.local` file.
 
 **macOS / Linux**
 ```bash
@@ -123,15 +176,15 @@ cp env.example .env.local
 Copy-Item env.example .env.local
 ```
 
-Add your Deepgram key to `.env.local`:
+Add your Deepgram key locally:
 
 ```dotenv
 DEEPGRAM_API_KEY=your_deepgram_api_key
 ```
 
-Do not commit `.env.local`, expose server keys through `NEXT_PUBLIC_` variables, or paste credentials into issues or chat.
+Never commit `.env.local` or expose server credentials through `NEXT_PUBLIC_` variables.
 
-### 3. Check the environment and start the voice server
+### Start the voice demo
 
 ```bash
 npm run check:env
@@ -140,24 +193,20 @@ npm run dev:voice
 
 Open [http://127.0.0.1:3000/voice](http://127.0.0.1:3000/voice), allow microphone access, and use headphones.
 
-**Use `npm run dev:voice` for the streaming voice demo.** The ordinary `npm run dev` command serves the text/legacy browser-speech experience; it does not start the same streaming WebSocket voice pipeline.
+For the streaming WebSocket voice experience, use `npm run dev:voice`. The ordinary `npm run dev` command serves the text/legacy browser-speech experience and does not start the same streaming voice pipeline.
 
-The voice server uses port 3000 by default and a dedicated `.next-dev-voice` cache. It does not silently select another port. To reset generated development caches, stop the server with Ctrl+C and run:
+The voice server uses port 3000 by default and a dedicated `.next-dev-voice` cache. To reset generated development caches, stop the server with Ctrl+C and run:
 
 ```bash
 npm run clean
 npm run dev:voice
 ```
 
-## Menu data
-
-The active menu source is `lib/menu-source.json`, imported from the restaurant-approved menu file. The repository documentation records 84 unique item IDs, 13 items with size choices, and 66 spice-enabled items. Prices are stored as integer cents.
-
-`lib/menu.ts` is generated from the menu source; aliases are maintained separately. Older menus and third-party listings are not used as sources for new prices. The approved menu still flags six size surcharges as unverified, so the demo preserves that warning. Tax is not configured: displayed totals are subtotals, not tax-inclusive totals.
-
 ## Testing and evaluation
 
-Run the portable checks from the project root:
+The repository includes order-engine tests, voice pipeline tests, browser checks, scripted demo checks, privacy checks, and regression tests.
+
+Run the main checks:
 
 ```bash
 npm run menu:check
@@ -173,39 +222,40 @@ npm run check:privacy
 npm run build
 ```
 
-For the local order-engine suite, run:
+Run the local order-engine suite:
 
 ```bash
 npm run test:engine
 ```
 
-The repository also includes a five-minute scripted walkthrough, real-microphone test instructions, CSV analysis utilities, and regression tests. See the linked documentation below for the exact scope of each test.
+### Honest evaluation of accent robustness
 
-### What the measurements do—and do not—show
+The project records latency from speech end to informative playback and includes both synthetic-provider tests and owner-recorded microphone sessions. These are useful for debugging response time, endpointing, and playback behavior.
 
-The project records speech-end-to-informative-playback latency separately from neutral acknowledgements. Historical synthetic tests used fixed inputs with real speech providers; owner-recorded microphone sessions used different utterances and small sample sizes.
+However, **the current measurements do not prove a particular accent-recognition accuracy**. There is no independently scored, multi-speaker dataset covering Pakistani, Indian, Nepali, or Afghan accents, and the recorded real-microphone samples are small and not a controlled model comparison. Synthetic speech cannot substitute for human accent evaluation.
 
-These measurements are useful for debugging endpointing, playback, and response delays. They are **not** a controlled comparison of accent recognition, a population-level accuracy score, or proof that the system handles every real order correctly. Some recorded sessions contain incomplete replies, missing timings, or regressions. The latest Roman-display and checkout changes still require fresh real-microphone retesting.
+The next meaningful evaluation step is a consented test set of real speakers reading natural restaurant orders, with separate scoring for:
+1. Speech transcription correctness.
+2. Correct menu-item and quantity extraction.
+3. Final-cart correctness after clarification and confirmation.
 
-See [known limitations and recorded measurements](docs/known-limitations.md) before interpreting any benchmark.
+See [known limitations and recorded measurements](docs/known-limitations.md) for the current evidence and failed/regressed trials.
 
-## Privacy, safety, and deployment limits
+## Privacy and deployment limitations
 
 - Server-side audio and transcript persistence is disabled.
-- The ticket cache is held in server memory, is bounded, expires after thirty minutes, and is lost on restart.
+- The server ticket cache is in memory, bounded, and expires after thirty minutes or server restart.
 - Tickets are redacted; callback numbers are not retained in the ticket payload.
-- Optional Resend delivery is disabled unless explicitly enabled and configured. It targets one owner test inbox, not the restaurant.
-- The SMS preview always reports `sent: false`; no carrier API is called.
-- A provider accepting an email request does not prove inbox delivery.
-- There is no durable ticket database, staff acceptance interface, delivery webhook, or POS integration.
-- Public/tunnel access requires the configured access-token protections. The local server is not intended to be exposed publicly without them.
-
-This is a development and demonstration system, not a production ordering service. Before production use it would need independently evaluated speech performance, real staff workflows, durable storage, secure deployment, operational monitoring, failure recovery, and explicit restaurant/POS integration.
+- Optional Resend email is disabled unless explicitly enabled and configured for one owner test inbox.
+- The SMS preview always has `sent: false`; no carrier API is called.
+- Provider acceptance of an email request does not prove inbox delivery.
+- Public/tunnel access requires the configured access-token protections.
+- The current app is a local development demo, not a production phone service.
 
 ## Project documentation
 
 - [Five-minute demo script](docs/demo-script.md)
-- [Known limitations and latency measurements](docs/known-limitations.md)
+- [Known limitations and measured results](docs/known-limitations.md)
 - [Action-safety design](docs/action-safety.md)
 - [Mixed-language behavior and retest guide](docs/code-switching.md)
 - [Ticket delivery, storage, and idempotency](docs/ticket-delivery.md)
@@ -214,13 +264,13 @@ This is a development and demonstration system, not a production ordering servic
 
 ## Roadmap
 
-- Collect a consented, multi-speaker evaluation set covering relevant accents, dish names, numbers, and code-switching.
-- Score speech transcription and final-cart correctness separately.
-- Retest the current checkout and mixed-language changes on real microphones.
-- Improve clarification and recovery for noisy, incomplete, or conflicting speech.
-- Add durable ticket storage and a staff acceptance workflow.
-- Evaluate a production deployment and restaurant integrations only after safety and reliability requirements are met.
+- Build a consented multi-speaker accent evaluation set using real restaurant-ordering phrases.
+- Measure word error rate, dish/quantity extraction accuracy, and final-cart correctness separately.
+- Improve recognition and clarification for unfamiliar dish names, code-switching, and noisy audio.
+- Retest current mixed-language and checkout behavior with real microphones.
+- Add durable ticket storage and a staff-facing acceptance workflow.
+- Evaluate secure hosting and real restaurant integrations only after reliability and operational requirements are met.
 
-## License and status
+## Project status
 
-This repository is a development demo. Check the repository's current files and configuration before reusing it or deploying it in another environment.
+This project demonstrates an engineering approach to a real restaurant voice-ordering challenge: combine speech recognition with menu knowledge and safe transaction logic instead of trusting raw transcripts. It is currently a development prototype and has not been deployed as Karahi House's live ordering system.
